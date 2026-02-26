@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   TextInput as RNTextInput,
   Animated,
-  Clipboard,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -86,7 +85,12 @@ export const CaptionGeneratorScreen = ({ navigation }: any) => {
   };
 
   const handleCopy = (text: string, index: number) => {
-    Clipboard.setString(text);
+    if (Platform.OS === 'web') {
+      navigator.clipboard?.writeText(text);
+    } else {
+      const { Clipboard } = require('react-native');
+      Clipboard.setString(text);
+    }
     setCopiedIndex(index);
     setTimeout(() => setCopiedIndex(null), 2000);
   };

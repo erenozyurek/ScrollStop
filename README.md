@@ -1,97 +1,271 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# ScrollStop — AI Powered UGC Ad Generator
 
-# Getting Started
+AI destekli kisa form video reklam olusturucu. React Native (iOS, Android, Web).
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+---
 
-## Step 1: Start Metro
+## Gereksinimler (Sifirdan Kurulum — macOS)
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Asagidaki adimlari **hic React Native kurulumu olmayan** bir Mac'te sirasiyla uygulayin.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+### 1. Homebrew
 
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
+Kurulduktan sonra terminali kapatip acin veya:
 
 ```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+eval "$(/opt/homebrew/bin/brew shellenv)"
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+### 2. Node.js (>= 22)
 
 ```sh
-bundle install
+brew install node
 ```
 
-Then, and every time you update your native dependencies, run:
+Kontrol:
 
 ```sh
-bundle exec pod install
+node -v   # v22.x.x veya ustu
+npm -v
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+### 3. Watchman
+
+React Native'in dosya degisikliklerini izlemesi icin gerekli:
 
 ```sh
-# Using npm
+brew install watchman
+```
+
+### 4. Xcode (iOS icin)
+
+1. **App Store**'dan **Xcode** indirip kurun (15.x veya ustu)
+2. Xcode'u acin, `Settings > Locations > Command Line Tools` altinda Xcode versiyonunu secin
+3. iOS Simulator kurun: Xcode > `Settings > Platforms > + > iOS 18.x`
+
+Xcode CLI tools kontrol:
+
+```sh
+xcode-select -p
+# /Applications/Xcode.app/Contents/Developer cikmali
+```
+
+Eger cikti yoksa:
+
+```sh
+sudo xcode-select --install
+```
+
+### 5. CocoaPods
+
+```sh
+brew install cocoapods
+```
+
+Kontrol:
+
+```sh
+pod --version
+```
+
+### 6. Ruby (opsiyonel)
+
+macOS varsayilan Ruby yeterli olmayabilir. `bundle install` hata verirse:
+
+```sh
+brew install ruby
+echo 'export PATH="/opt/homebrew/opt/ruby/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+---
+
+## Projeyi Kurma
+
+### 1. Repoyu klonla
+
+```sh
+git clone https://github.com/erenozyurek/ScrollStop.git
+cd ScrollStop
+```
+
+### 2. NPM bagimliklarini kur
+
+```sh
+npm install --legacy-peer-deps
+```
+
+> `--legacy-peer-deps` flag'i peer dependency conflict'lerini onler.
+
+### 3. iOS native bagimliliklari kur
+
+```sh
+cd ios
+pod install
+cd ..
+```
+
+> Hata alirsaniz `pod repo update` calistirip tekrar deneyin.
+
+---
+
+## Calistirma
+
+### iOS (Simulator)
+
+```sh
 npm run ios
-
-# OR using Yarn
-yarn ios
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+Bu komut:
+- Metro bundler'i baslatir
+- iOS projesini build eder
+- Simulator'da uygulamayi acar
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Belirli bir simulator secmek icin:
 
-## Step 3: Modify your app
+```sh
+npx react-native run-ios --simulator="iPhone 16 Pro"
+```
 
-Now that you have successfully run the app, let's make changes!
+### Android (Emulator)
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+> Android Studio ve bir emulator kurulu olmalidir.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+```sh
+npm run android
+```
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+### Web
 
-## Congratulations! :tada:
+```sh
+npm run web
+```
 
-You've successfully run and modified your React Native App. :partying_face:
+Tarayicida **http://localhost:3000** adresinde acilir.
 
-### Now what?
+Production build:
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+```sh
+npm run web:build
+```
 
-# Troubleshooting
+---
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Sadece Metro Bundler baslatma
 
-# Learn More
+```sh
+npm start
+```
 
-To learn more about React Native, take a look at the following resources:
+Cache temizleyerek baslatmak icin:
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+```sh
+npm start -- --reset-cache
+```
+
+---
+
+## Test Hesabi
+
+Uygulama su an hardcoded test hesabiyla calisir:
+
+| Alan  | Deger              |
+|-------|--------------------|
+| Email | erencan@gmail.com  |
+| Sifre | 12345              |
+
+---
+
+## Proje Yapisi
+
+```
+ScrollStop/
+├── App.tsx                      # Root component
+├── index.js                     # Native entry point
+├── index.web.js                 # Web entry point
+├── webpack.config.js            # Web build config
+├── src/
+│   ├── theme/                   # Renk, tipografi, spacing
+│   ├── context/AuthContext.tsx   # Auth state yonetimi
+│   ├── navigation/              # Stack + Tab navigasyon
+│   ├── components/common/       # Button, Card, Chip, TextInput
+│   └── screens/
+│       ├── auth/                # Welcome, Login, Signup
+│       ├── home/                # Ana sayfa
+│       ├── create/              # CreateAd, CaptionGenerator, Generating
+│       ├── preview/             # Video onizleme
+│       ├── projects/            # Proje listesi (filtreli)
+│       ├── profile/             # Profil ve ayarlar
+│       └── pricing/             # Fiyat planlari
+├── ios/                         # iOS native proje
+├── android/                     # Android native proje
+└── web/                         # Web HTML template
+```
+
+---
+
+## Sik Karsilasilan Sorunlar
+
+### Metro "port 8081 already in use"
+
+```sh
+lsof -ti:8081 | xargs kill -9
+npm start
+```
+
+### iOS build hatasi (pods eksik)
+
+```sh
+cd ios && pod install && cd ..
+npm run ios
+```
+
+### "Unimplemented component: RNSScreenContent"
+
+Native moduller linklenmemis:
+
+```sh
+cd ios && pod install && cd ..
+npx react-native run-ios
+```
+
+### Feather ikonlari "?" olarak gorunuyor
+
+Clean build yapin:
+
+```sh
+cd ios && pod install && cd ..
+npx react-native run-ios
+```
+
+### Web build webpack hatasi
+
+```sh
+rm -rf web-build node_modules/.cache
+npm run web
+```
+
+---
+
+## Kullanilan Teknolojiler
+
+- **React Native** 0.84.0
+- **React** 19.2.3
+- **TypeScript**
+- **React Navigation** (Native Stack + Bottom Tabs)
+- **react-native-web** (Web destegi)
+- **react-native-vector-icons** (Feather icon set)
+- **react-native-safe-area-context**
+- **react-native-screens**
+- **Webpack** (Web build)
+
+---
+
+## Lisans
+
+Ozel proje — tum haklari saklidir.
