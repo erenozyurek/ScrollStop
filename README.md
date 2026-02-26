@@ -154,6 +154,34 @@ Production build:
 npm run web:build
 ```
 
+### Caption Generator API (backend)
+
+Caption Generator ekrani artik gercek bir backend endpoint'ine baglidir:
+
+- `POST http://localhost:8081/api/captions`
+- `GET  http://localhost:8081/health`
+
+Backend'i ayri bir terminalde baslatin:
+
+```sh
+npm run caption:api
+```
+
+`caption:api` varsayilan olarak `8081` acar; port doluysa otomatik olarak `8787` ile yeniden dener.
+
+Opsiyonel ortam degiskenleri:
+
+```sh
+OPENROUTER_API_KEY=...
+OPENROUTER_MODEL=openai/gpt-4o-mini
+PORT=8081
+```
+
+Notlar:
+- Android emulator icin app once `http://10.0.2.2:8081`, sonra fallback olarak `http://10.0.2.2:8787` dener.
+- iOS simulator ve web icin app once `http://localhost:8081`, sonra fallback olarak `http://localhost:8787` dener.
+- Eger Metro da `8081` kullaniyorsa backend'i `PORT=8787` ile calistirman yeterli.
+
 ---
 
 ## Sadece Metro Bundler baslatma
