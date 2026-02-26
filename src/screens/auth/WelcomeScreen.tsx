@@ -5,6 +5,7 @@ import {
   StyleSheet,
   Dimensions,
   StatusBar,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing } from '../../theme';
@@ -20,9 +21,11 @@ export const WelcomeScreen = ({ navigation }: any) => {
       <View style={styles.content}>
         {/* Logo Area */}
         <View style={styles.logoArea}>
-          <View style={styles.logoIcon}>
-            <Text style={styles.logoEmoji}>⚡</Text>
-          </View>
+          <Image
+            source={require('../../assets/images/ScrollStop.png')}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
           <Text style={styles.appName}>ScrollStop</Text>
           <Text style={styles.tagline}>AI-Powered UGC Ad Generator</Text>
         </View>
@@ -78,17 +81,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 60,
   },
-  logoIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
+  logoImage: {
+    width: 100,
+    height: 100,
+    borderRadius: 24,
     marginBottom: Spacing.lg,
-  },
-  logoEmoji: {
-    fontSize: 36,
   },
   appName: {
     fontSize: 40,
