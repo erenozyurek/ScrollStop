@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,12 +6,14 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, Card, StatCard } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
+import { getUserCaptions, Caption } from '../../services/firestore';
 
 const RECENT_PROJECTS = [
   {
@@ -41,6 +43,47 @@ export const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
   const firstName = user?.displayName?.split(' ')[0] || 'Creator';
   const initial = firstName.charAt(0).toUpperCase();
+
+  const [captions, setCaptions] = useState<Caption[]>([]);
+  const [captionsLoading, setCaptionsLoading] = useState(false);
+
+  const fetchCaptions = useCallback(async () => {
+    if (!user?.uid) {
+      setCaptionsLoading(false);
+      setCaptions([]);
+      return;
+    }
+    try {
+      setCaptionsLoading(true);
+      const data = await getUserCaptions(user.uid);
+      setCaptions(data);
+    } catch (err) {
+      console.error('Failed to fetch captions:', err);
+      setCaptions([]);
+    } finally {
+      setCaptionsLoading(false);
+    }
+  }, [user?.uid]);
+
+  useEffect(() => {
+    fetchCaptions();
+  }, [fetchCaptions]);
+
+  // Caption tarihini formatla
+  const formatDate = (timestamp: any): string => {
+    if (!timestamp?.toDate) return '';
+    const date = timestamp.toDate();
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
 
   const renderProject = ({ item }: any) => (
     <Card
@@ -168,6 +211,62 @@ export const HomeScreen = ({ navigation }: any) => {
             style={styles.creditButton}
           />
         </Card>
+
+        {/* Recent Captions */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Recent Captions</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('CaptionGenerator')}>
+              <Text style={styles.seeAll}>+ New</Text>
+            </TouchableOpacity>
+          </View>
+
+          {captionsLoading ? (
+            <View style={styles.captionsLoading}>
+              <ActivityIndicator size="small" color={Colors.textTertiary} />
+            </View>
+          ) : captions.length === 0 ? (
+            <Card style={styles.emptyCaptionCard}>
+              <View style={styles.emptyCaptionContent}>
+                <Feather name="edit-3" size={24} color={Colors.textTertiary} />
+                <Text style={styles.emptyCaptionText}>
+                  No captions yet
+                </Text>
+                <Text style={styles.emptyCaptionSubtext}>
+                  Generate your first ad caption with AI
+                </Text>
+                <Button
+                  title="Generate Caption"
+                  onPress={() => navigation.navigate('CaptionGenerator')}
+                  variant="outline"
+                  size="sm"
+                  style={styles.emptyCaptionButton}
+                />
+              </View>
+            </Card>
+          ) : (
+            captions.slice(0, 5).map(caption => (
+              <Card key={caption.id} style={styles.captionHistoryCard}>
+                <View style={styles.captionHistoryRow}>
+                  <View style={styles.captionHistoryIcon}>
+                    <Feather name="file-text" size={16} color={Colors.white} />
+                  </View>
+                  <View style={styles.captionHistoryInfo}>
+                    <Text
+                      style={styles.captionHistoryText}
+                      numberOfLines={2}
+                      ellipsizeMode="tail">
+                      {caption.text}
+                    </Text>
+                    <Text style={styles.captionHistoryDate}>
+                      {formatDate(caption.createdAt)}
+                    </Text>
+                  </View>
+                </View>
+              </Card>
+            ))
+          )}
+        </View>
       </ScrollView>
     </SafeAreaView>
   );
@@ -381,5 +480,61 @@ const styles = StyleSheet.create({
   },
   creditButton: {
     marginTop: Spacing.xs,
+  },
+  captionsLoading: {
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+  },
+  emptyCaptionCard: {
+    padding: Spacing.lg,
+  },
+  emptyCaptionContent: {
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  emptyCaptionText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.white,
+    marginTop: Spacing.xs,
+  },
+  emptyCaptionSubtext: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+  },
+  emptyCaptionButton: {
+    marginTop: Spacing.sm,
+  },
+  captionHistoryCard: {
+    marginBottom: Spacing.sm,
+    padding: Spacing.md,
+  },
+  captionHistoryRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  captionHistoryIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  captionHistoryInfo: {
+    flex: 1,
+    marginLeft: Spacing.md,
+  },
+  captionHistoryText: {
+    fontSize: 14,
+    color: Colors.white,
+    lineHeight: 20,
+  },
+  captionHistoryDate: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    marginTop: 4,
   },
 });

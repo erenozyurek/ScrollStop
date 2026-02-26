@@ -17,6 +17,8 @@ import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, Chip } from '../../components/common';
 import { generateCaptions } from '../../services/captionApi';
 import type { GeneratedCaption } from '../../services/captionApi';
+import { createCaption } from '../../services/firestore';
+import { useAuth } from '../../context/AuthContext';
 
 const PLATFORMS = ['Instagram', 'TikTok', 'YouTube', 'X (Twitter)', 'Facebook'];
 const TONES = ['Professional', 'Playful', 'Bold', 'Minimal', 'Urgent', 'Luxury'];
@@ -40,6 +42,7 @@ const buildDefaultCta = (language: string) =>
   language === 'Turkish' ? 'Satın al (bio’daki link)' : 'Shop now (link in bio)';
 
 export const CaptionGeneratorScreen = ({ navigation }: any) => {
+  const { user } = useAuth();
   const [step, setStep] = useState<'form' | 'generating' | 'results'>('form');
   const [productName, setProductName] = useState('');
   const [productDesc, setProductDesc] = useState('');
@@ -128,6 +131,22 @@ export const CaptionGeneratorScreen = ({ navigation }: any) => {
       progressAnim.setValue(1);
       setGeneratedCaptions(captions);
       setStep('results');
+
+      // Firestore'a kaydet
+      if (user?.uid) {
+        for (const c of captions) {
+          try {
+            await createCaption({
+              userId: user.uid,
+              productId: '',
+              text: c.caption + (c.hashtags ? '\n\n' + c.hashtags : ''),
+            });
+          } catch (err) {
+            console.error('Failed to save caption to Firestore:', err);
+          }
+        }
+      }
+
       Animated.timing(fadeAnim, {
         toValue: 1,
         duration: 400,

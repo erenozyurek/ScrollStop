@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, TextInput } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
@@ -48,7 +49,7 @@ export const SignupScreen = ({ navigation }: any) => {
             <TouchableOpacity
               onPress={() => navigation.goBack()}
               style={styles.backButton}>
-              <Text style={styles.backText}>←</Text>
+              <Feather name="arrow-left" size={24} color={Colors.white} />
             </TouchableOpacity>
             <Text style={styles.title}>Create account</Text>
             <Text style={styles.subtitle}>

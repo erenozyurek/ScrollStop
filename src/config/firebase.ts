@@ -1,28 +1,37 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
 import {
-  FIREBASE_API_KEY,
-  FIREBASE_AUTH_DOMAIN,
-  FIREBASE_PROJECT_ID,
-  FIREBASE_STORAGE_BUCKET,
-  FIREBASE_MESSAGING_SENDER_ID,
-  FIREBASE_APP_ID,
-} from '@env';
+  initializeAuth,
+  getReactNativePersistence,
+  browserLocalPersistence,
+  inMemoryPersistence,
+} from 'firebase/auth';
+import { getFirestore } from 'firebase/firestore';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
-// Firebase Console'dan aldığınız config bilgilerini .env'ye ekleyin
-// https://console.firebase.google.com → Project Settings → Your apps → Web app
 const firebaseConfig = {
-  apiKey: FIREBASE_API_KEY,
-  authDomain: FIREBASE_AUTH_DOMAIN,
-  projectId: FIREBASE_PROJECT_ID,
-  storageBucket: FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: FIREBASE_MESSAGING_SENDER_ID,
-  appId: FIREBASE_APP_ID,
+  apiKey: 'AIzaSyC1lY7xNsMv_CksXxcxk_Z7ejY7HzWNkzc',
+  authDomain: 'scrollstop-33da7.firebaseapp.com',
+  projectId: 'scrollstop-33da7',
+  storageBucket: 'scrollstop-33da7.firebasestorage.app',
+  messagingSenderId: '263965967395',
+  appId: '1:263965967395:web:d0cb92b768b50f2e8d9d96',
 };
 
 const app = initializeApp(firebaseConfig);
 
-export const auth = getAuth(app);
+// iOS'ta persistence sorununu bypass etmek için platform bazlı seçim
+let persistence;
+try {
+  persistence = getReactNativePersistence(AsyncStorage);
+} catch (e) {
+  console.warn('[Firebase] RN persistence failed, falling back to inMemory');
+  persistence = inMemoryPersistence;
+}
+
+export const auth = initializeAuth(app, {
+  persistence,
+});
+
 export const db = getFirestore(app);
 export default app;

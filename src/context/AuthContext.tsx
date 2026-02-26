@@ -85,11 +85,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setUser(toUser(profile));
       return true;
     } catch (err: any) {
+      const code = err.code || 'unknown';
       const message =
-        err.code === 'auth/invalid-credential'
+        code === 'auth/invalid-credential'
           ? 'Invalid email or password. Please try again.'
-          : err.code === 'auth/too-many-requests'
+          : code === 'auth/too-many-requests'
           ? 'Too many attempts. Please try again later.'
+          : code === 'auth/network-request-failed'
+          ? `Network error. Code: ${code}\n\nDetail: ${err.message}\n\nCustomData: ${JSON.stringify(err.customData || {})}`
           : err.message || 'Login failed. Please try again.';
 
       Alert.alert('Login Failed', message);

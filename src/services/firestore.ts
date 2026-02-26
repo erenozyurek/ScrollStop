@@ -8,7 +8,6 @@ import {
   deleteDoc,
   query,
   where,
-  orderBy,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
@@ -157,10 +156,11 @@ export const getUserProducts = async (userId: string): Promise<Product[]> => {
   const q = query(
     collection(db, PRODUCTS),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Product));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Product))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const updateProduct = async (
@@ -201,20 +201,22 @@ export const getProductCaptions = async (productId: string): Promise<Caption[]> 
   const q = query(
     collection(db, CAPTIONS),
     where('productId', '==', productId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Caption));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Caption))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const getUserCaptions = async (userId: string): Promise<Caption[]> => {
   const q = query(
     collection(db, CAPTIONS),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Caption));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Caption))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const deleteCaption = async (captionId: string): Promise<void> => {
@@ -247,20 +249,22 @@ export const getProductVideos = async (productId: string): Promise<Video[]> => {
   const q = query(
     collection(db, VIDEOS),
     where('productId', '==', productId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Video));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Video))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const getUserVideos = async (userId: string): Promise<Video[]> => {
   const q = query(
     collection(db, VIDEOS),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as Video));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Video))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const updateVideo = async (
@@ -302,10 +306,11 @@ export const getUserAIJobs = async (userId: string): Promise<AIJob[]> => {
   const q = query(
     collection(db, AI_JOBS),
     where('userId', '==', userId),
-    orderBy('createdAt', 'desc'),
   );
   const snap = await getDocs(q);
-  return snap.docs.map(d => ({ id: d.id, ...d.data() } as AIJob));
+  return snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as AIJob))
+    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
 };
 
 export const updateAIJob = async (
@@ -338,12 +343,13 @@ export const getUserSubscription = async (userId: string): Promise<Subscription 
     collection(db, SUBSCRIPTIONS),
     where('userId', '==', userId),
     where('status', '==', 'active'),
-    orderBy('startDate', 'desc'),
   );
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...d.data() } as Subscription;
+  const sorted = snap.docs
+    .map(d => ({ id: d.id, ...d.data() } as Subscription))
+    .sort((a, b) => (b.startDate?.toMillis() ?? 0) - (a.startDate?.toMillis() ?? 0));
+  return sorted[0];
 };
 
 export const updateSubscription = async (
