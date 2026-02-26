@@ -19,6 +19,11 @@ import { PreviewScreen } from '../screens/preview/PreviewScreen';
 import { PricingScreen } from '../screens/pricing/PricingScreen';
 import { ProjectsScreen } from '../screens/projects/ProjectsScreen';
 import { CaptionGeneratorScreen } from '../screens/create/CaptionGeneratorScreen';
+import { EditProfileScreen } from '../screens/profile/EditProfileScreen';
+import { TermsScreen } from '../screens/profile/TermsScreen';
+import { PrivacyScreen } from '../screens/profile/PrivacyScreen';
+import { HelpSupportScreen } from '../screens/profile/HelpSupportScreen';
+import { NotificationsScreen } from '../screens/profile/NotificationsScreen';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -85,6 +90,31 @@ export const AppNavigator = () => {
           name="CaptionGenerator"
           component={CaptionGeneratorScreen}
           options={{ animation: 'slide_from_bottom' }}
+        />
+        <Stack.Screen
+          name="EditProfile"
+          component={EditProfileScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="Terms"
+          component={TermsScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="Privacy"
+          component={PrivacyScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="Support"
+          component={HelpSupportScreen}
+          options={{ animation: 'slide_from_right' }}
+        />
+        <Stack.Screen
+          name="Notifications"
+          component={NotificationsScreen}
+          options={{ animation: 'slide_from_right' }}
         />
 
         {/* Other */}

@@ -2,10 +2,9 @@ import { initializeApp } from 'firebase/app';
 import {
   initializeAuth,
   getReactNativePersistence,
-  browserLocalPersistence,
   inMemoryPersistence,
 } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { initializeFirestore } from 'firebase/firestore';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Platform } from 'react-native';
 
@@ -20,18 +19,17 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-// iOS'ta persistence sorununu bypass etmek için platform bazlı seçim
-let persistence;
-try {
-  persistence = getReactNativePersistence(AsyncStorage);
-} catch (e) {
-  console.warn('[Firebase] RN persistence failed, falling back to inMemory');
-  persistence = inMemoryPersistence;
-}
-
+// iOS: Auth SDK kullanılmıyor (REST API ile çalışıyor)
+// Yine de initializeAuth gerekli çünkü diğer platformlar ve import'lar bliyor
+// iOS'ta inMemoryPersistence ile minimal init — ağ bağlantısı yapmaz
 export const auth = initializeAuth(app, {
-  persistence,
+  persistence: Platform.OS === 'ios'
+    ? inMemoryPersistence
+    : getReactNativePersistence(AsyncStorage),
 });
 
-export const db = getFirestore(app);
+// iOS: Firestore long polling kullan — WebChannel iOS RN'de çalışmıyor
+export const db = initializeFirestore(app, {
+  experimentalForceLongPolling: Platform.OS === 'ios',
+});
 export default app;

@@ -18,6 +18,11 @@ export type RootStackParamList = {
   Pricing: undefined;
   Projects: undefined;
   CaptionGenerator: undefined;
+  EditProfile: undefined;
+  Terms: undefined;
+  Privacy: undefined;
+  Support: undefined;
+  Notifications: undefined;
 };
 
 export type MainTabParamList = {

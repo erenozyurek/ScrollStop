@@ -63,7 +63,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               <Text style={styles.profileName}>{user?.displayName || 'User'}</Text>
               <Text style={styles.profileEmail}>{user?.email || ''}</Text>
             </View>
-            <TouchableOpacity style={styles.editButton}>
+            <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile')}>
               <Text style={styles.editText}>Edit</Text>
             </TouchableOpacity>
           </View>
@@ -115,7 +115,10 @@ export const ProfileScreen = ({ navigation }: any) => {
                 index === 0 && styles.menuItemFirst,
                 index === MENU_ITEMS.length - 1 && styles.menuItemLast,
               ]}
-              onPress={() => {}}>
+              onPress={() => {
+                if (item.screen === 'Usage') return; // mock — no screen yet
+                navigation.navigate(item.screen);
+              }}>
               <Icon name={item.icon} size={18} color={Colors.textTertiary} style={styles.menuIcon} />
               <Text style={styles.menuLabel}>{item.label}</Text>
               <Text style={styles.menuArrow}>›</Text>

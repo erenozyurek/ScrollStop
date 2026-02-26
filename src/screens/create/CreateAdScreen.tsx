@@ -7,8 +7,12 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  Image,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { launchImageLibrary, launchCamera, type Asset } from 'react-native-image-picker';
+import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, TextInput, Chip } from '../../components/common';
 
@@ -39,6 +43,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
   const [productUrl, setProductUrl] = useState('');
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
+  const [productImage, setProductImage] = useState<Asset | null>(null);
   const [selectedAudience, setSelectedAudience] = useState<string[]>([]);
   const [selectedTone, setSelectedTone] = useState('');
   const [selectedDuration, setSelectedDuration] = useState('15s');
@@ -49,6 +54,46 @@ export const CreateAdScreen = ({ navigation }: any) => {
         ? prev.filter(a => a !== audience)
         : [...prev, audience],
     );
+  };
+
+  const handlePickImage = () => {
+    Alert.alert(
+      'Ürün Resmi',
+      'Resmi nereden eklemek istersiniz?',
+      [
+        {
+          text: 'Kamera',
+          onPress: () => {
+            launchCamera(
+              { mediaType: 'photo', maxWidth: 1024, maxHeight: 1024, quality: 0.8 },
+              response => {
+                if (!response.didCancel && !response.errorCode && response.assets?.[0]) {
+                  setProductImage(response.assets[0]);
+                }
+              },
+            );
+          },
+        },
+        {
+          text: 'Galeri',
+          onPress: () => {
+            launchImageLibrary(
+              { mediaType: 'photo', maxWidth: 1024, maxHeight: 1024, quality: 0.8 },
+              response => {
+                if (!response.didCancel && !response.errorCode && response.assets?.[0]) {
+                  setProductImage(response.assets[0]);
+                }
+              },
+            );
+          },
+        },
+        { text: 'İptal', style: 'cancel' },
+      ],
+    );
+  };
+
+  const handleRemoveImage = () => {
+    setProductImage(null);
   };
 
   const canProceed = () => {
@@ -69,6 +114,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
       productName,
       productDescription,
       productUrl,
+      productImageUri: productImage?.uri || null,
       audience: selectedAudience,
       tone: selectedTone,
       duration: selectedDuration,
@@ -138,6 +184,43 @@ export const CreateAdScreen = ({ navigation }: any) => {
                 numberOfLines={4}
                 style={styles.textarea}
               />
+
+              {/* Product Image */}
+              <Text style={styles.imageLabel}>Product Image (optional)</Text>
+              {productImage ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image
+                    source={{ uri: productImage.uri }}
+                    style={styles.imagePreview}
+                    resizeMode="cover"
+                  />
+                  <View style={styles.imageActions}>
+                    <TouchableOpacity
+                      style={styles.imageActionBtn}
+                      onPress={handlePickImage}>
+                      <Feather name="refresh-cw" size={18} color={Colors.white} />
+                      <Text style={styles.imageActionText}>Değiştir</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.imageActionBtn, styles.imageRemoveBtn]}
+                      onPress={handleRemoveImage}>
+                      <Feather name="trash-2" size={18} color="#FF4444" />
+                      <Text style={[styles.imageActionText, { color: '#FF4444' }]}>Kaldır</Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ) : (
+                <TouchableOpacity
+                  style={styles.imagePicker}
+                  onPress={handlePickImage}
+                  activeOpacity={0.7}>
+                  <View style={styles.imagePickerIconContainer}>
+                    <Feather name="image" size={32} color={Colors.textTertiary} />
+                  </View>
+                  <Text style={styles.imagePickerTitle}>Ürün resmi ekle</Text>
+                  <Text style={styles.imagePickerSubtitle}>Kamera veya galeriden seçin</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -234,6 +317,10 @@ export const CreateAdScreen = ({ navigation }: any) => {
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryTitle}>Summary</Text>
                 <SummaryRow label="Product" value={productName} />
+                <SummaryRow
+                  label="Image"
+                  value={productImage ? '✓ Eklendi' : 'Yok'}
+                />
                 <SummaryRow
                   label="Audience"
                   value={selectedAudience.join(', ')}
@@ -344,6 +431,78 @@ const styles = StyleSheet.create({
   textarea: {
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  imageLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    marginBottom: Spacing.sm,
+    marginTop: Spacing.md,
+  },
+  imagePicker: {
+    borderWidth: 2,
+    borderColor: Colors.border,
+    borderStyle: 'dashed',
+    borderRadius: BorderRadius.lg,
+    paddingVertical: Spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.surface,
+  },
+  imagePickerIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: BorderRadius.full,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.md,
+  },
+  imagePickerTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.white,
+    marginBottom: 4,
+  },
+  imagePickerSubtitle: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+  },
+  imagePreviewContainer: {
+    borderRadius: BorderRadius.lg,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 200,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+  },
+  imageActions: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  imageActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    backgroundColor: Colors.background,
+  },
+  imageRemoveBtn: {
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+  },
+  imageActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.white,
   },
   chipGrid: {
     flexDirection: 'row',

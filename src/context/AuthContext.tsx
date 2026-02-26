@@ -3,14 +3,16 @@ import React, {
   useContext,
   useState,
   useEffect,
+  useRef,
   ReactNode,
 } from 'react';
-import { Alert } from 'react-native';
+import { Alert, Platform } from 'react-native';
 import {
   firebaseLogin,
   firebaseSignup,
   firebaseLogout,
   subscribeToAuthChanges,
+  getIOSAuthData,
 } from '../services/authService';
 import { getUserProfile, UserProfile } from '../services/firestore';
 
@@ -57,18 +59,43 @@ const toUser = (profile: UserProfile): User => ({
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  // iOS'ta login/signup sonrası auth listener'ın user'ı null yapmasını engelle
+  const manualAuthRef = useRef(false);
 
   // Firebase Auth state listener — uygulama açıldığında oturum durumunu kontrol eder
   useEffect(() => {
     const unsubscribe = subscribeToAuthChanges(async firebaseUser => {
+      // Manuel auth işlemi yapıldıysa (login/signup) listener'ı atla
+      if (manualAuthRef.current) {
+        setLoading(false);
+        return;
+      }
+
       if (firebaseUser) {
+        // iOS'ta SDK auth olmayabilir — önce SDK ile Firestore'u dene
+        // Başarısız olursa AsyncStorage'daki veriyi kullan
         try {
           const profile = await getUserProfile(firebaseUser.uid);
           if (profile) {
             setUser(toUser(profile));
           }
         } catch (err) {
-          console.error('Failed to fetch user profile:', err);
+          // Firestore permission hatası — iOS'ta SDK auth yok demek
+          // AsyncStorage'daki temel veriyi kullan
+          if (Platform.OS === 'ios') {
+            const storedAuth = await getIOSAuthData();
+            if (storedAuth) {
+              setUser({
+                uid: storedAuth.uid,
+                displayName: storedAuth.displayName || 'User',
+                username: storedAuth.email.split('@')[0],
+                email: storedAuth.email,
+                subscriptionType: 'free',
+              });
+            }
+          } else {
+            console.error('Failed to fetch user profile:', err);
+          }
         }
       } else {
         setUser(null);
@@ -81,18 +108,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
+      manualAuthRef.current = true;
       const profile = await firebaseLogin(email, password);
       setUser(toUser(profile));
       return true;
     } catch (err: any) {
+      manualAuthRef.current = false;
       const code = err.code || 'unknown';
       const message =
         code === 'auth/invalid-credential'
           ? 'Invalid email or password. Please try again.'
           : code === 'auth/too-many-requests'
           ? 'Too many attempts. Please try again later.'
-          : code === 'auth/network-request-failed'
-          ? `Network error. Code: ${code}\n\nDetail: ${err.message}\n\nCustomData: ${JSON.stringify(err.customData || {})}`
+          : code === 'auth/invalid-login-credentials'
+          ? 'Invalid email or password. Please try again.'
           : err.message || 'Login failed. Please try again.';
 
       Alert.alert('Login Failed', message);
@@ -106,10 +135,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     password: string,
   ): Promise<boolean> => {
     try {
+      manualAuthRef.current = true;
       const profile = await firebaseSignup(name, email, password);
       setUser(toUser(profile));
       return true;
     } catch (err: any) {
+      manualAuthRef.current = false;
       const message =
         err.code === 'auth/email-already-in-use'
           ? 'An account with this email already exists.'
@@ -125,6 +156,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const logout = async () => {
     try {
       await firebaseLogout();
+      manualAuthRef.current = false;
       setUser(null);
     } catch (err) {
       console.error('Logout error:', err);
