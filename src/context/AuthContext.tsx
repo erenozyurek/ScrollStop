@@ -1,82 +1,143 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from 'react';
 import { Alert } from 'react-native';
+import {
+  firebaseLogin,
+  firebaseSignup,
+  firebaseLogout,
+  subscribeToAuthChanges,
+} from '../services/authService';
+import { getUserProfile, UserProfile } from '../services/firestore';
 
-interface User {
-  name: string;
+// Ekranlara expose edilen User tipi
+export interface User {
+  uid: string;
+  displayName: string;
+  username: string;
   email: string;
-  password: string;
-  credits: number;
+  subscriptionType: string;
 }
 
 interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
-  login: (email: string, password: string) => boolean;
-  signup: (name: string, email: string, password: string) => boolean;
-  logout: () => void;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  signup: (name: string, email: string, password: string) => Promise<boolean>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
   user: null,
   isLoggedIn: false,
-  login: () => false,
-  signup: () => false,
-  logout: () => {},
+  loading: true,
+  login: async () => false,
+  signup: async () => false,
+  logout: async () => {},
+  refreshUser: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
 
+// UserProfile → UI User dönüşümü
+const toUser = (profile: UserProfile): User => ({
+  uid: profile.uid,
+  displayName: profile.displayName,
+  username: profile.username,
+  email: profile.email,
+  subscriptionType: profile.subscriptionType,
+});
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-  // Registered users store
-  const [users, setUsers] = useState<User[]>([
-    {
-      name: 'Erencan',
-      email: 'erencan@gmail.com',
-      password: '12345',
-      credits: 30,
-    },
-  ]);
-
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = (email: string, password: string): boolean => {
-    const found = users.find(
-      u => u.email.toLowerCase() === email.toLowerCase() && u.password === password,
-    );
+  // Firebase Auth state listener — uygulama açıldığında oturum durumunu kontrol eder
+  useEffect(() => {
+    const unsubscribe = subscribeToAuthChanges(async firebaseUser => {
+      if (firebaseUser) {
+        try {
+          const profile = await getUserProfile(firebaseUser.uid);
+          if (profile) {
+            setUser(toUser(profile));
+          }
+        } catch (err) {
+          console.error('Failed to fetch user profile:', err);
+        }
+      } else {
+        setUser(null);
+      }
+      setLoading(false);
+    });
 
-    if (found) {
-      setUser(found);
+    return unsubscribe;
+  }, []);
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const profile = await firebaseLogin(email, password);
+      setUser(toUser(profile));
       return true;
-    }
+    } catch (err: any) {
+      const message =
+        err.code === 'auth/invalid-credential'
+          ? 'Invalid email or password. Please try again.'
+          : err.code === 'auth/too-many-requests'
+          ? 'Too many attempts. Please try again later.'
+          : err.message || 'Login failed. Please try again.';
 
-    Alert.alert('Login Failed', 'Invalid email or password. Please try again.');
-    return false;
-  };
-
-  const signup = (name: string, email: string, password: string): boolean => {
-    const exists = users.find(
-      u => u.email.toLowerCase() === email.toLowerCase(),
-    );
-
-    if (exists) {
-      Alert.alert('Signup Failed', 'An account with this email already exists.');
+      Alert.alert('Login Failed', message);
       return false;
     }
-
-    const newUser: User = {
-      name,
-      email,
-      password,
-      credits: 10,
-    };
-
-    setUsers(prev => [...prev, newUser]);
-    setUser(newUser);
-    return true;
   };
 
-  const logout = () => {
-    setUser(null);
+  const signup = async (
+    name: string,
+    email: string,
+    password: string,
+  ): Promise<boolean> => {
+    try {
+      const profile = await firebaseSignup(name, email, password);
+      setUser(toUser(profile));
+      return true;
+    } catch (err: any) {
+      const message =
+        err.code === 'auth/email-already-in-use'
+          ? 'An account with this email already exists.'
+          : err.code === 'auth/weak-password'
+          ? 'Password must be at least 6 characters.'
+          : err.message || 'Signup failed. Please try again.';
+
+      Alert.alert('Signup Failed', message);
+      return false;
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseLogout();
+      setUser(null);
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+  };
+
+  const refreshUser = async () => {
+    if (!user) return;
+    try {
+      const profile = await getUserProfile(user.uid);
+      if (profile) {
+        setUser(toUser(profile));
+      }
+    } catch (err) {
+      console.error('Failed to refresh user:', err);
+    }
   };
 
   return (
@@ -84,9 +145,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       value={{
         user,
         isLoggedIn: !!user,
+        loading,
         login,
         signup,
         logout,
+        refreshUser,
       }}>
       {children}
     </AuthContext.Provider>

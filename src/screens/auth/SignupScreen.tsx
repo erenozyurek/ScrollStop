@@ -20,18 +20,19 @@ export const SignupScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
   const { signup } = useAuth();
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     setLoading(true);
-    setTimeout(() => {
-      const success = signup(name, email, password);
-      setLoading(false);
+    try {
+      const success = await signup(name, email, password);
       if (success) {
         navigation.reset({
           index: 0,
           routes: [{ name: 'Main' }],
         });
       }
-    }, 800);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

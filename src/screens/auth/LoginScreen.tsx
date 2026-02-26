@@ -19,18 +19,19 @@ export const LoginScreen = ({ navigation }: any) => {
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     setLoading(true);
-    setTimeout(() => {
-      const success = login(email, password);
-      setLoading(false);
+    try {
+      const success = await login(email, password);
       if (success) {
         navigation.reset({
           index: 0,
           routes: [{ name: 'Main' }],
         });
       }
-    }, 800);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

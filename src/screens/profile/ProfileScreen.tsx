@@ -25,7 +25,7 @@ const MENU_ITEMS = [
 
 export const ProfileScreen = ({ navigation }: any) => {
   const { user, logout } = useAuth();
-  const initial = user?.name?.charAt(0).toUpperCase() || 'U';
+  const initial = user?.displayName?.charAt(0).toUpperCase() || 'U';
 
   const handleLogout = () => {
     Alert.alert('Log Out', 'Are you sure you want to log out?', [
@@ -60,7 +60,7 @@ export const ProfileScreen = ({ navigation }: any) => {
               <Text style={styles.avatarText}>{initial}</Text>
             </View>
             <View style={styles.profileInfo}>
-              <Text style={styles.profileName}>{user?.name || 'User'}</Text>
+              <Text style={styles.profileName}>{user?.displayName || 'User'}</Text>
               <Text style={styles.profileEmail}>{user?.email || ''}</Text>
             </View>
             <TouchableOpacity style={styles.editButton}>

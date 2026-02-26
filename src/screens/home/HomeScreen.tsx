@@ -39,7 +39,7 @@ const RECENT_PROJECTS = [
 
 export const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
-  const firstName = user?.name?.split(' ')[0] || 'Creator';
+  const firstName = user?.displayName?.split(' ')[0] || 'Creator';
   const initial = firstName.charAt(0).toUpperCase();
 
   const renderProject = ({ item }: any) => (
@@ -99,7 +99,7 @@ export const HomeScreen = ({ navigation }: any) => {
         {/* Stats */}
         <View style={styles.statsRow}>
           <StatCard label="Videos" value="12" />
-          <StatCard label="Credits" value={String(user?.credits ?? 0)} />
+          <StatCard label="Plan" value={user?.subscriptionType ?? 'free'} />
           <StatCard label="This Month" value="5" />
         </View>
 
