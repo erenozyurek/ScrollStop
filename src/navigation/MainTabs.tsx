@@ -36,11 +36,11 @@ const TabIcon = ({
 export const MainTabs = () => {
   return (
     <Tab.Navigator
-      sceneContainerStyle={{ backgroundColor: Colors.background }}
       screenOptions={{
         headerShown: false,
         tabBarStyle: styles.tabBar,
         tabBarShowLabel: false,
+        sceneStyle: { backgroundColor: Colors.background },
         tabBarBackground: () => (
           <View style={{flex: 1, backgroundColor: Colors.surface}} />
         ),
