@@ -1,8 +1,5 @@
 declare module '@env' {
-  export const OPENROUTER_API_KEY: string;
-  export const OPENROUTER_MODEL: string;
-  export const PORT: string;
-  export const OPENROUTER_HTTP_REFERER: string;
+  export const BACKEND_BASE_URL: string | undefined;
 
   // Firebase
   export const FIREBASE_API_KEY: string;

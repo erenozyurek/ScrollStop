@@ -151,7 +151,7 @@ export const firebaseSignup = async (
     // SDK'ya da giriş yap → Firestore auth context'i senkronize et
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (_) {
+    } catch {
       // SDK hatası olsa bile REST başarılı — devam
     }
 
@@ -200,7 +200,7 @@ export const firebaseLogin = async (
     // SDK'ya da giriş yap → Firestore auth context'i senkronize et
     try {
       await signInWithEmailAndPassword(auth, email, password);
-    } catch (_) {
+    } catch {
       // SDK hatası olsa bile REST başarılı — devam
     }
   } else {
@@ -222,7 +222,7 @@ export const firebaseLogin = async (
 export const firebaseLogout = async (): Promise<void> => {
   if (Platform.OS === 'ios') {
     await clearIOSAuth();
-    try { await signOut(auth); } catch (_) {}
+    try { await signOut(auth); } catch {}
   } else {
     await signOut(auth);
   }
@@ -283,6 +283,33 @@ export const getCurrentUser = (): FirebaseUser | null => {
 
 // iOS için: kayıtlı auth verisini al
 export const getIOSAuthData = getIOSAuth;
+
+export const getFirebaseIdToken = async (): Promise<string | null> => {
+  if (Platform.OS === 'ios') {
+    const stored = await getIOSAuth();
+    if (!stored) return null;
+
+    if (stored.expiresAt < Date.now()) {
+      const refreshed = await refreshIOSToken(stored.refreshToken);
+      if (!refreshed) {
+        await clearIOSAuth();
+        return null;
+      }
+      return refreshed.idToken;
+    }
+
+    return stored.idToken;
+  }
+
+  const user = auth.currentUser;
+  if (!user) return null;
+
+  try {
+    return await user.getIdToken();
+  } catch {
+    return null;
+  }
+};
 
 // ============================================================
 // Şifre değiştirme — iOS: REST API, Android: SDK

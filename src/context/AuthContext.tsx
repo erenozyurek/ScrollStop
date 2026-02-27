@@ -14,7 +14,12 @@ import {
   subscribeToAuthChanges,
   getIOSAuthData,
 } from '../services/authService';
-import { getUserProfile, UserProfile } from '../services/firestore';
+import {
+  getUserEntitlement,
+  getUserProfile,
+  UserEntitlement,
+  UserProfile,
+} from '../services/firestore';
 
 // Ekranlara expose edilen User tipi
 export interface User {
@@ -22,7 +27,9 @@ export interface User {
   displayName: string;
   username: string;
   email: string;
-  subscriptionType: string;
+  plan: string;
+  entitlementProvider: string;
+  entitlementStatus: string;
 }
 
 interface AuthContextType {
@@ -48,12 +55,17 @@ const AuthContext = createContext<AuthContextType>({
 export const useAuth = () => useContext(AuthContext);
 
 // UserProfile → UI User dönüşümü
-const toUser = (profile: UserProfile): User => ({
+const toUser = (
+  profile: UserProfile,
+  entitlement: UserEntitlement | null,
+): User => ({
   uid: profile.uid,
   displayName: profile.displayName,
   username: profile.username,
   email: profile.email,
-  subscriptionType: profile.subscriptionType,
+  plan: entitlement?.plan || 'free',
+  entitlementProvider: entitlement?.provider || 'none',
+  entitlementStatus: entitlement?.status || 'inactive',
 });
 
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
@@ -75,9 +87,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         // iOS'ta SDK auth olmayabilir — önce SDK ile Firestore'u dene
         // Başarısız olursa AsyncStorage'daki veriyi kullan
         try {
-          const profile = await getUserProfile(firebaseUser.uid);
+          const [profile, entitlement] = await Promise.all([
+            getUserProfile(firebaseUser.uid),
+            getUserEntitlement(firebaseUser.uid),
+          ]);
           if (profile) {
-            setUser(toUser(profile));
+            setUser(toUser(profile, entitlement));
+          } else {
+            setUser({
+              uid: firebaseUser.uid,
+              displayName: firebaseUser.displayName || 'User',
+              username: firebaseUser.email?.split('@')[0] || 'user',
+              email: firebaseUser.email || '',
+              plan: entitlement?.plan || 'free',
+              entitlementProvider: entitlement?.provider || 'none',
+              entitlementStatus: entitlement?.status || 'inactive',
+            });
           }
         } catch (err) {
           // Firestore permission hatası — iOS'ta SDK auth yok demek
@@ -90,7 +115,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 displayName: storedAuth.displayName || 'User',
                 username: storedAuth.email.split('@')[0],
                 email: storedAuth.email,
-                subscriptionType: 'free',
+                plan: 'free',
+                entitlementProvider: 'none',
+                entitlementStatus: 'inactive',
               });
             }
           } else {
@@ -110,7 +137,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       manualAuthRef.current = true;
       const profile = await firebaseLogin(email, password);
-      setUser(toUser(profile));
+      const entitlement = await getUserEntitlement(profile.uid);
+      setUser(toUser(profile, entitlement));
       return true;
     } catch (err: any) {
       manualAuthRef.current = false;
@@ -137,7 +165,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     try {
       manualAuthRef.current = true;
       const profile = await firebaseSignup(name, email, password);
-      setUser(toUser(profile));
+      const entitlement = await getUserEntitlement(profile.uid);
+      setUser(toUser(profile, entitlement));
       return true;
     } catch (err: any) {
       manualAuthRef.current = false;
@@ -166,9 +195,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const refreshUser = async () => {
     if (!user) return;
     try {
-      const profile = await getUserProfile(user.uid);
+      const [profile, entitlement] = await Promise.all([
+        getUserProfile(user.uid),
+        getUserEntitlement(user.uid),
+      ]);
       if (profile) {
-        setUser(toUser(profile));
+        setUser(toUser(profile, entitlement));
       }
     } catch (err) {
       console.error('Failed to refresh user:', err);

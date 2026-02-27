@@ -1,19 +1,22 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
   ActivityIndicator,
+  Modal,
+  Platform,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, Card, StatCard } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
-import { getUserCaptions, Caption } from '../../services/firestore';
+import { getRecentCaptions, RecentCaption } from '../../services/captionApi';
 
 const RECENT_PROJECTS = [
   {
@@ -44,8 +47,12 @@ export const HomeScreen = ({ navigation }: any) => {
   const firstName = user?.displayName?.split(' ')[0] || 'Creator';
   const initial = firstName.charAt(0).toUpperCase();
 
-  const [captions, setCaptions] = useState<Caption[]>([]);
+  const [captions, setCaptions] = useState<RecentCaption[]>([]);
   const [captionsLoading, setCaptionsLoading] = useState(false);
+  const [isAllCaptionsModalVisible, setAllCaptionsModalVisible] = useState(false);
+  const [selectedCaption, setSelectedCaption] = useState<RecentCaption | null>(null);
+  const [copiedOptionKey, setCopiedOptionKey] = useState<string | null>(null);
+  const copiedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchCaptions = useCallback(async () => {
     if (!user?.uid) {
@@ -55,7 +62,7 @@ export const HomeScreen = ({ navigation }: any) => {
     }
     try {
       setCaptionsLoading(true);
-      const data = await getUserCaptions(user.uid);
+      const data = await getRecentCaptions(10);
       setCaptions(data);
     } catch (err) {
       console.error('Failed to fetch captions:', err);
@@ -65,14 +72,27 @@ export const HomeScreen = ({ navigation }: any) => {
     }
   }, [user?.uid]);
 
+  useFocusEffect(
+    useCallback(() => {
+      fetchCaptions();
+    }, [fetchCaptions]),
+  );
+
   useEffect(() => {
-    fetchCaptions();
-  }, [fetchCaptions]);
+    return () => {
+      if (copiedTimeoutRef.current) {
+        clearTimeout(copiedTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Caption tarihini formatla
-  const formatDate = (timestamp: any): string => {
-    if (!timestamp?.toDate) return '';
-    const date = timestamp.toDate();
+  const formatDate = (dateString: string): string => {
+    if (!dateString) return '';
+
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return '';
+
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -120,6 +140,50 @@ export const HomeScreen = ({ navigation }: any) => {
     </Card>
   );
 
+  const recentCaptionPreview = captions.slice(0, 3);
+
+  const openCaptionDetail = (caption: RecentCaption) => {
+    setSelectedCaption(caption);
+  };
+
+  const closeCaptionDetail = () => {
+    setSelectedCaption(null);
+    setCopiedOptionKey(null);
+  };
+
+  const openCaptionFromSeeAll = (caption: RecentCaption) => {
+    setAllCaptionsModalVisible(false);
+    setTimeout(() => {
+      setSelectedCaption(caption);
+    }, 0);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    if (Platform.OS === 'web') {
+      const nav = (globalThis as any).navigator;
+      await nav?.clipboard?.writeText?.(text);
+      return;
+    }
+
+    try {
+      const nativeClipboard = require('@react-native-clipboard/clipboard');
+      const clipboard = nativeClipboard?.default || nativeClipboard;
+      clipboard?.setString?.(text);
+      return;
+    } catch {
+      await Share.share({ message: text });
+    }
+  };
+
+  const handleCopyOption = async (text: string, optionKey: string) => {
+    await copyToClipboard(text);
+    setCopiedOptionKey(optionKey);
+    if (copiedTimeoutRef.current) {
+      clearTimeout(copiedTimeoutRef.current);
+    }
+    copiedTimeoutRef.current = setTimeout(() => setCopiedOptionKey(null), 2000);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={['top', 'left', 'right']}>
       <ScrollView
@@ -142,7 +206,7 @@ export const HomeScreen = ({ navigation }: any) => {
         {/* Stats */}
         <View style={styles.statsRow}>
           <StatCard label="Videos" value="12" />
-          <StatCard label="Plan" value={user?.subscriptionType ?? 'free'} />
+          <StatCard label="Plan" value={user?.plan ?? 'free'} />
           <StatCard label="This Month" value="5" />
         </View>
 
@@ -213,12 +277,19 @@ export const HomeScreen = ({ navigation }: any) => {
         </Card>
 
         {/* Recent Captions */}
-        <View style={styles.section}>
+        <View style={[styles.section, styles.recentCaptionsSection]}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recent Captions</Text>
-            <TouchableOpacity onPress={() => navigation.navigate('CaptionGenerator')}>
-              <Text style={styles.seeAll}>+ New</Text>
-            </TouchableOpacity>
+            <View style={styles.recentCaptionActions}>
+              {captions.length > 3 ? (
+                <TouchableOpacity onPress={() => setAllCaptionsModalVisible(true)}>
+                  <Text style={styles.seeAll}>See All</Text>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity onPress={() => navigation.navigate('CaptionGenerator')}>
+                <Text style={styles.seeAll}>+ New</Text>
+              </TouchableOpacity>
+            </View>
           </View>
 
           {captionsLoading ? (
@@ -245,8 +316,11 @@ export const HomeScreen = ({ navigation }: any) => {
               </View>
             </Card>
           ) : (
-            captions.slice(0, 5).map(caption => (
-              <Card key={caption.id} style={styles.captionHistoryCard}>
+            recentCaptionPreview.map(caption => (
+              <Card
+                key={caption.id}
+                style={styles.captionHistoryCard}
+                onPress={() => openCaptionDetail(caption)}>
                 <View style={styles.captionHistoryRow}>
                   <View style={styles.captionHistoryIcon}>
                     <Feather name="file-text" size={16} color={Colors.white} />
@@ -268,6 +342,148 @@ export const HomeScreen = ({ navigation }: any) => {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isAllCaptionsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAllCaptionsModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>All Recent Captions</Text>
+              <TouchableOpacity
+                style={styles.modalCloseButton}
+                onPress={() => setAllCaptionsModalVisible(false)}>
+                <Feather name="x" size={18} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              {captions.length === 0 ? (
+                <Text style={styles.modalEmptyText}>No captions found.</Text>
+              ) : (
+                captions.map(caption => (
+                  <TouchableOpacity
+                    key={caption.id}
+                    style={styles.modalListItem}
+                    onPress={() => openCaptionFromSeeAll(caption)}
+                    activeOpacity={0.8}>
+                    <Text style={styles.modalListText} numberOfLines={2}>
+                      {caption.text}
+                    </Text>
+                    <Text style={styles.modalListDate}>{formatDate(caption.createdAt)}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!selectedCaption}
+        transparent
+        animationType="fade"
+        onRequestClose={closeCaptionDetail}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View style={styles.modalHeaderTextWrap}>
+                <Text style={styles.modalTitle} numberOfLines={1}>
+                  {selectedCaption?.productName || 'Caption Detail'}
+                </Text>
+                <Text style={styles.modalSubtitle}>
+                  {formatDate(selectedCaption?.createdAt || '')}
+                </Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={closeCaptionDetail}>
+                <Feather name="x" size={18} color={Colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={styles.modalScroll} showsVerticalScrollIndicator={false}>
+              {selectedCaption?.captions?.length ? (
+                selectedCaption.captions.map((item, index) => (
+                  <View key={`${selectedCaption.id}-${index}`} style={styles.modalCaptionOption}>
+                    <View style={styles.modalOptionHeader}>
+                      <Text style={styles.modalOptionLabel}>Option {index + 1}</Text>
+                      <TouchableOpacity
+                        style={styles.modalCopyButton}
+                        onPress={() =>
+                          handleCopyOption(
+                            `${item.caption}${item.hashtags ? `\n\n${item.hashtags}` : ''}`,
+                            `${selectedCaption.id}-${index}`,
+                          )
+                        }>
+                        <Feather
+                          name={copiedOptionKey === `${selectedCaption.id}-${index}` ? 'check' : 'copy'}
+                          size={14}
+                          color={
+                            copiedOptionKey === `${selectedCaption.id}-${index}`
+                              ? Colors.success
+                              : Colors.textTertiary
+                          }
+                        />
+                        <Text
+                          style={[
+                            styles.modalCopyText,
+                            copiedOptionKey === `${selectedCaption.id}-${index}`
+                              ? { color: Colors.success }
+                              : null,
+                          ]}>
+                          {copiedOptionKey === `${selectedCaption.id}-${index}` ? 'Copied' : 'Copy'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={styles.modalCaptionText}>{item.caption}</Text>
+                    {item.hashtags ? (
+                      <Text style={styles.modalHashtagText}>{item.hashtags}</Text>
+                    ) : null}
+                  </View>
+                ))
+              ) : (
+                <View style={styles.modalCaptionOption}>
+                  <View style={styles.modalOptionHeader}>
+                    <Text style={styles.modalOptionLabel}>Caption</Text>
+                    <TouchableOpacity
+                      style={styles.modalCopyButton}
+                      onPress={() =>
+                        handleCopyOption(
+                          `${selectedCaption?.text || ''}${selectedCaption?.hashtags ? `\n\n${selectedCaption.hashtags}` : ''}`,
+                          `${selectedCaption?.id || 'fallback'}-0`,
+                        )
+                      }>
+                      <Feather
+                        name={copiedOptionKey === `${selectedCaption?.id || 'fallback'}-0` ? 'check' : 'copy'}
+                        size={14}
+                        color={
+                          copiedOptionKey === `${selectedCaption?.id || 'fallback'}-0`
+                            ? Colors.success
+                            : Colors.textTertiary
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.modalCopyText,
+                          copiedOptionKey === `${selectedCaption?.id || 'fallback'}-0`
+                            ? { color: Colors.success }
+                            : null,
+                        ]}>
+                        {copiedOptionKey === `${selectedCaption?.id || 'fallback'}-0` ? 'Copied' : 'Copy'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                  <Text style={styles.modalCaptionText}>{selectedCaption?.text || ''}</Text>
+                  {selectedCaption?.hashtags ? (
+                    <Text style={styles.modalHashtagText}>{selectedCaption.hashtags}</Text>
+                  ) : null}
+                </View>
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 };
@@ -392,11 +608,19 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: Spacing.lg,
   },
+  recentCaptionsSection: {
+    marginTop: Spacing.md,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: Spacing.md,
+  },
+  recentCaptionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
   },
   sectionTitle: {
     fontSize: 18,
@@ -536,5 +760,116 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textTertiary,
     marginTop: 4,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+    justifyContent: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  modalCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    maxHeight: '78%',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalHeaderTextWrap: {
+    flex: 1,
+    marginRight: Spacing.md,
+  },
+  modalTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  modalSubtitle: {
+    marginTop: 4,
+    fontSize: 12,
+    color: Colors.textTertiary,
+  },
+  modalCloseButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.surfaceLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalScroll: {
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  modalEmptyText: {
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    paddingVertical: Spacing.xl,
+  },
+  modalListItem: {
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalListText: {
+    color: Colors.white,
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  modalListDate: {
+    marginTop: 6,
+    fontSize: 12,
+    color: Colors.textTertiary,
+  },
+  modalCaptionOption: {
+    paddingVertical: Spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  modalOptionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.xs,
+  },
+  modalOptionLabel: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+  },
+  modalCopyButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: Colors.surfaceLight,
+  },
+  modalCopyText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.textTertiary,
+  },
+  modalCaptionText: {
+    fontSize: 15,
+    color: Colors.white,
+    lineHeight: 22,
+  },
+  modalHashtagText: {
+    marginTop: Spacing.sm,
+    fontSize: 13,
+    color: Colors.textTertiary,
+    lineHeight: 20,
   },
 });

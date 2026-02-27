@@ -25,7 +25,14 @@ export interface UserProfile {
   displayName: string;
   provider: string;          // 'email' | 'google'
   createdAt: Timestamp | null;
-  subscriptionType: string;  // 'free' | 'pro' | 'premium'
+}
+
+export interface UserEntitlement {
+  uid: string;               // Document ID = Auth UID
+  plan: string;
+  provider: string;
+  status: string;
+  updatedAt: Timestamp | null;
 }
 
 // 2. Products
@@ -86,11 +93,18 @@ export interface Subscription {
 // ============================================================
 
 const USERS = 'users';
+const ENTITLEMENTS = 'entitlements';
 const PRODUCTS = 'products';
 const CAPTIONS = 'captions';
 const VIDEOS = 'videos';
 const AI_JOBS = 'ai_jobs';
 const SUBSCRIPTIONS = 'subscriptions';
+
+const isPermissionDeniedError = (error: any): boolean => {
+  const code = String(error?.code || '');
+  const message = String(error?.message || '').toLowerCase();
+  return code.includes('permission-denied') || message.includes('missing or insufficient permissions');
+};
 
 // ============================================================
 // 1. Users
@@ -107,7 +121,6 @@ export const createUserProfile = async (
     displayName: data.displayName,
     provider: data.provider || 'email',
     createdAt: serverTimestamp() as Timestamp,
-    subscriptionType: 'free',
   };
 
   await setDoc(userRef, profile);
@@ -115,18 +128,64 @@ export const createUserProfile = async (
 };
 
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
-  const userRef = doc(db, USERS, uid);
-  const snapshot = await getDoc(userRef);
-  if (!snapshot.exists()) return null;
-  return { uid: snapshot.id, ...snapshot.data() } as UserProfile;
+  try {
+    const userRef = doc(db, USERS, uid);
+    const snapshot = await getDoc(userRef);
+    if (!snapshot.exists()) return null;
+    return { uid: snapshot.id, ...snapshot.data() } as UserProfile;
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      return null;
+    }
+    throw error;
+  }
 };
 
 export const updateUserProfile = async (
   uid: string,
-  data: Partial<Pick<UserProfile, 'displayName' | 'username' | 'subscriptionType'>>,
+  data: Partial<Pick<UserProfile, 'displayName' | 'username'>>,
 ): Promise<void> => {
   const userRef = doc(db, USERS, uid);
   await updateDoc(userRef, { ...data });
+};
+
+export const getUserEntitlement = async (
+  uid: string,
+): Promise<UserEntitlement | null> => {
+  try {
+    const entitlementRef = doc(db, ENTITLEMENTS, uid);
+    const snapshot = await getDoc(entitlementRef);
+
+    if (!snapshot.exists()) {
+      return {
+        uid,
+        plan: 'free',
+        provider: 'none',
+        status: 'inactive',
+        updatedAt: null,
+      };
+    }
+
+    const data = snapshot.data() as Partial<UserEntitlement>;
+    return {
+      uid: snapshot.id,
+      plan: String(data.plan || 'free'),
+      provider: String(data.provider || 'none'),
+      status: String(data.status || 'inactive'),
+      updatedAt: (data.updatedAt as Timestamp | null) || null,
+    };
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      return {
+        uid,
+        plan: 'free',
+        provider: 'none',
+        status: 'inactive',
+        updatedAt: null,
+      };
+    }
+    throw error;
+  }
 };
 
 // ============================================================
@@ -209,14 +268,21 @@ export const getProductCaptions = async (productId: string): Promise<Caption[]> 
 };
 
 export const getUserCaptions = async (userId: string): Promise<Caption[]> => {
-  const q = query(
-    collection(db, CAPTIONS),
-    where('userId', '==', userId),
-  );
-  const snap = await getDocs(q);
-  return snap.docs
-    .map(d => ({ id: d.id, ...d.data() } as Caption))
-    .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
+  try {
+    const q = query(
+      collection(db, CAPTIONS),
+      where('userId', '==', userId),
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Caption))
+      .sort((a, b) => (b.createdAt?.toMillis() ?? 0) - (a.createdAt?.toMillis() ?? 0));
+  } catch (error) {
+    if (isPermissionDeniedError(error)) {
+      return [];
+    }
+    throw error;
+  }
 };
 
 export const deleteCaption = async (captionId: string): Promise<void> => {

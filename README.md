@@ -156,31 +156,23 @@ npm run web:build
 
 ### Caption Generator API (backend)
 
-Caption Generator ekrani artik gercek bir backend endpoint'ine baglidir:
+Caption Generator ekrani artik `scrollstop-backend` projesine baglidir.
 
-- `POST http://localhost:8081/api/captions`
-- `GET  http://localhost:8081/health`
+Beklenen endpointler:
 
-Backend'i ayri bir terminalde baslatin:
-
-```sh
-npm run caption:api
-```
-
-`caption:api` varsayilan olarak `8081` acar; port doluysa otomatik olarak `8787` ile yeniden dener.
+- `POST /api/captions` (Authorization: `Bearer <Firebase ID Token>`)
+- `GET /api/captions/recent?limit=10` (Authorization: `Bearer <Firebase ID Token>`)
+- `GET /health`
 
 Opsiyonel ortam degiskenleri:
 
 ```sh
-OPENROUTER_API_KEY=...
-OPENROUTER_MODEL=openai/gpt-4o-mini
-PORT=8081
+BACKEND_BASE_URL=http://localhost:8087
 ```
 
 Notlar:
-- Android emulator icin app once `http://10.0.2.2:8081`, sonra fallback olarak `http://10.0.2.2:8787` dener.
-- iOS simulator ve web icin app once `http://localhost:8081`, sonra fallback olarak `http://localhost:8787` dener.
-- Eger Metro da `8081` kullaniyorsa backend'i `PORT=8787` ile calistirman yeterli.
+- `BACKEND_BASE_URL` verilmezse app dev ortaminda birden fazla local adrese fallback dener (`8087`, `8000`, `8787`, `8081`).
+- Android emulator icin host fallback'i `10.0.2.2` ile de denenir.
 
 ---
 
