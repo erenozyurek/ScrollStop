@@ -1,0 +1,261 @@
+📱 ScrollStop
+AI Powered UGC Ad Generator
+1. Proje Özeti
+
+ScrollStop, e-ticaret satıcılarının ürünleri için kısa form video reklamlarını otomatik olarak üretmesini sağlayan AI tabanlı mobil uygulamadır.
+
+Kullanıcılar ürün linki veya görsel yükleyerek;
+
+Reklam scripti üretir
+
+AI voiceover oluşturur
+
+Altyazı ekler
+
+9:16 reklam videosu export eder
+
+Amaç, reklam kreatif üretim sürecini hızlandırmak ve maliyeti azaltmaktır.
+
+2. Problem Tanımı
+
+E-ticaret reklam üretiminde mevcut problemler:
+
+Reklam kreatif üretimi pahalıdır
+
+Influencer UGC üretimi zaman alır
+
+Video edit teknik bilgi gerektirir
+
+Sürekli yeni kreatif test etmek zordur
+
+ScrollStop bu süreci otomatikleştirir.
+
+3. Hedef Kullanıcılar
+
+Shopify store sahipleri
+
+Dropshipping girişimcileri
+
+Amazon FBA satıcıları
+
+TikTok reklam pazarlamacıları
+
+Digital marketing ajansları
+
+4. Ürün Özellikleri
+Core Özellikler
+
+✅ Ürün linki veya görsel yükleme
+✅ AI reklam script üretimi
+✅ AI voiceover
+✅ Otomatik altyazı
+✅ Video render ve export
+
+Kullanıcı Akışı
+
+Login / Signup
+
+Create Ad
+
+Ürün bilgisi gir
+
+Hedef kitle seç
+
+Reklam tonu seç
+
+Video süresi seç
+
+Generate
+
+Preview + Download
+
+5. AI Özellikleri
+Script Generator
+
+Hook
+
+Problem
+
+Agitation
+
+Solution
+
+CTA
+
+Format:
+
+15 saniye reklam optimizasyonu
+
+Voice Generation
+
+Çoklu ses seçeneği
+
+İngilizce başlangıç
+
+Subtitle Engine
+
+Zaman damgası bölme
+
+TikTok stil büyük altyazılar
+
+6. Teknik Mimari
+Mobil
+
+React Native
+
+Backend
+
+Node.js / Express
+
+AI Servisleri
+
+OpenAI (Script + text generation)
+
+TTS API (Voice)
+
+Whisper (Transcription opsiyonel)
+
+Video Processing
+
+FFmpeg
+
+Queue system (Redis + BullMQ)
+
+Storage
+
+Cloud storage (S3 / R2)
+
+7. Veritabanı Tasarımı
+
+Örnek tablolar:
+
+Users
+
+id
+
+email
+
+password_hash
+
+credits
+
+Projects
+
+id
+
+user_id
+
+product_data
+
+video_url
+
+status
+
+Transactions
+
+user_id
+
+payment_id
+
+credits
+
+8. Gelir Modeli
+
+Credit bazlı sistem:
+
+Plan	Fiyat	Kredi
+Starter	$19	10 video
+Pro	$39	30 video
+Agency	$79	80 video
+9. MVP Kapsamı (1 Ay)
+Yapılacaklar
+
+Auth sistemi
+
+Product data parsing
+
+Script AI
+
+Voiceover
+
+Video render
+
+Payment
+
+Yapılmayacaklar
+
+AI avatar
+
+Advanced editor
+
+Campaign analytics
+
+10. Roadmap
+Week 1
+
+Proje setup
+
+UI
+
+Basic AI script
+
+Week 2
+
+Voice + subtitle
+
+Video pipeline
+
+Week 3
+
+Payment
+
+Queue system
+
+Week 4
+
+Optimization
+
+Beta launch
+
+11. Riskler
+Video render süresi
+
+Çözüm:
+
+Resolution limit
+
+Background queue
+
+API maliyeti
+
+Çözüm:
+
+Token limit
+
+Kalite problemi
+
+Çözüm:
+
+Fixed template system
+
+12. Başarı Ölçütleri
+
+50 ödeme yapan kullanıcı
+
+100+ video generation
+
+$1000+ revenue
+
+13. Uzun Vadeli Vizyon
+
+Multi language reklam üretimi
+
+Performance analytics
+
+AI creative optimization
+
+Agency dashboard
+
+14. Sonuç
+
+ScrollStop, AI destekli reklam üretimini otomatikleştirerek e-ticaret satıcılarının reklam kreatif üretim sürecini hızlandırmayı hedefleyen mikro SaaS mobil uygulamadır.
