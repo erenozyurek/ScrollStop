@@ -1,25 +1,54 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Dimensions,
   Platform,
+  Alert,
+  Linking,
+  Share,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, Card } from '../../components/common';
+import { getVideoJobStatus, type VideoJobStatus } from '../../services/videoApi';
 
-const { width } = Dimensions.get('window');
-const VIDEO_WIDTH = width - 48;
-const VIDEO_HEIGHT = VIDEO_WIDTH * (16 / 9);
+const NativeVideoPlayer: React.ComponentType<any> | null =
+  Platform.OS === 'web'
+    ? null
+    : (() => {
+        try {
+          return require('react-native-video').default;
+        } catch {
+          return null;
+        }
+      })();
 
 export const PreviewScreen = ({ navigation, route }: any) => {
+  const canRenderNativeVideo = !!NativeVideoPlayer;
+  const projectId = String(route?.params?.projectId || '').trim();
+  const canPollBackendStatus = /^[0-9A-HJKMNP-TV-Z]{26}$/i.test(projectId);
+  const initialVideoUrl = route?.params?.videoUrl
+    ? String(route.params.videoUrl)
+    : null;
+  const initialStatus =
+    (route?.params?.status as VideoJobStatus | undefined) ||
+    (initialVideoUrl ? 'success' : 'processing');
+
   const [activeTab, setActiveTab] = useState<'preview' | 'script' | 'settings'>(
     'preview',
   );
+  const [videoUrl, setVideoUrl] = useState<string | null>(initialVideoUrl);
+  const [jobStatus, setJobStatus] = useState<VideoJobStatus>(initialStatus);
+  const [statusError, setStatusError] = useState<string | null>(
+    route?.params?.error ? String(route.params.error) : null,
+  );
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
+  const [videoLoadError, setVideoLoadError] = useState<string | null>(null);
+  const [videoLoading, setVideoLoading] = useState(false);
 
   const mockScript = `[HOOK]
 "Are you still struggling with blue light headaches?"
@@ -28,13 +57,79 @@ export const PreviewScreen = ({ navigation, route }: any) => {
 "Spending 8+ hours on screens is destroying your eyes and sleep quality."
 
 [AGITATION]
-"Without protection, it only gets worse — migraines, insomnia, eye strain..."
+"Without protection, it only gets worse - migraines, insomnia, eye strain..."
 
 [SOLUTION]
 "These blue light blocking glasses filter 95% of harmful blue light instantly."
 
 [CTA]
 "Tap the link below and save 40% today. Your eyes will thank you."`;
+
+  const refreshJobStatus = useCallback(async () => {
+    if (!projectId || !canPollBackendStatus) {
+      return;
+    }
+
+    setIsRefreshingStatus(true);
+    try {
+      const statusResponse = await getVideoJobStatus(projectId);
+      setJobStatus(statusResponse.status);
+      setVideoUrl(statusResponse.videoUrl);
+      setStatusError(statusResponse.error);
+    } catch (error) {
+      setStatusError(
+        error instanceof Error ? error.message : 'Video status alinamadi.',
+      );
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  }, [canPollBackendStatus, projectId]);
+
+  useEffect(() => {
+    if (!videoUrl && canPollBackendStatus) {
+      refreshJobStatus();
+    }
+  }, [canPollBackendStatus, refreshJobStatus, videoUrl]);
+
+  const handleOpenVideo = async () => {
+    if (!videoUrl) {
+      Alert.alert('Video Not Ready', 'Video URL henuz hazir degil.');
+      return;
+    }
+
+    const canOpen = await Linking.canOpenURL(videoUrl);
+    if (!canOpen) {
+      Alert.alert('Open Error', 'Video URL acilamadi.');
+      return;
+    }
+
+    await Linking.openURL(videoUrl);
+  };
+
+  const handleShareVideo = async () => {
+    if (!videoUrl) {
+      Alert.alert('Video Not Ready', 'Video hazir oldugunda paylasabilirsiniz.');
+      return;
+    }
+
+    await Share.share({
+      message: videoUrl,
+      url: videoUrl,
+    });
+  };
+
+  const getReadableStatus = (status: VideoJobStatus): string => {
+    switch (status) {
+      case 'success':
+        return 'Ready';
+      case 'error':
+        return 'Failed';
+      case 'processing':
+        return 'Processing';
+      default:
+        return 'Pending';
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -78,9 +173,102 @@ export const PreviewScreen = ({ navigation, route }: any) => {
           <>
             <View style={styles.videoContainer}>
               <View style={styles.videoPlaceholder}>
-                <Text style={styles.videoIcon}>▶</Text>
-                <Text style={styles.videoLabel}>Video Preview</Text>
-                <Text style={styles.videoDuration}>0:15</Text>
+                {videoUrl && canRenderNativeVideo ? (
+                  <>
+                    <NativeVideoPlayer
+                      source={{ uri: videoUrl }}
+                      style={styles.videoPlayer}
+                      controls
+                      paused={false}
+                      resizeMode="cover"
+                      onLoadStart={() => {
+                        setVideoLoading(true);
+                        setVideoLoadError(null);
+                      }}
+                      onLoad={() => {
+                        setVideoLoading(false);
+                      }}
+                      onError={(event: any) => {
+                        setVideoLoading(false);
+                        const errorText =
+                          event?.error?.localizedDescription ||
+                          event?.error?.errorString ||
+                          event?.error?.message ||
+                          'Video player could not load this URL.';
+                        setVideoLoadError(String(errorText));
+                      }}
+                    />
+                    {videoLoading ? (
+                      <View style={styles.videoOverlay}>
+                        <ActivityIndicator size="large" color={Colors.white} />
+                        <Text style={styles.videoOverlayText}>Loading video...</Text>
+                      </View>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <Text style={styles.videoIcon}>▶</Text>
+                    <Text style={styles.videoLabel}>
+                      {jobStatus === 'success'
+                        ? 'Video Ready'
+                        : videoUrl
+                          ? 'Video Ready'
+                          : 'Video Preparing'}
+                    </Text>
+                    <Text style={styles.videoDuration}>
+                      Status: {getReadableStatus(jobStatus)}
+                    </Text>
+                    {videoUrl && !canRenderNativeVideo ? (
+                      <Text style={styles.playerFallbackText}>
+                        Native player bu buildde yok. Open Video ile izleyebilirsin.
+                      </Text>
+                    ) : null}
+                  </>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.statusCard}>
+              <View style={styles.statusHeader}>
+                <Text style={styles.statusLabel}>Generation Status</Text>
+                {isRefreshingStatus ? (
+                  <ActivityIndicator size="small" color={Colors.white} />
+                ) : null}
+              </View>
+              <Text style={styles.statusValue}>{getReadableStatus(jobStatus)}</Text>
+              {statusError ? (
+                <Text style={styles.statusError}>{statusError}</Text>
+              ) : null}
+              {videoLoadError ? (
+                <Text style={styles.statusError}>{videoLoadError}</Text>
+              ) : null}
+              {videoUrl ? (
+                <Text style={styles.videoUrlText} numberOfLines={3}>
+                  {videoUrl}
+                </Text>
+              ) : null}
+              <View style={styles.statusActions}>
+                <Button
+                  title="Refresh Status"
+                  onPress={() => {
+                    refreshJobStatus();
+                  }}
+                  variant="outline"
+                  size="sm"
+                  style={styles.statusActionButton}
+                  loading={isRefreshingStatus}
+                  disabled={!canPollBackendStatus}
+                />
+                <Button
+                  title="Open Video"
+                  onPress={() => {
+                    handleOpenVideo();
+                  }}
+                  variant="secondary"
+                  size="sm"
+                  style={styles.statusActionButton}
+                  disabled={!videoUrl}
+                />
               </View>
             </View>
 
@@ -99,8 +287,14 @@ export const PreviewScreen = ({ navigation, route }: any) => {
                 <Text style={styles.infoValue}>1080 x 1920</Text>
               </View>
               <View style={styles.infoRow}>
-                <Text style={styles.infoLabel}>Voice</Text>
-                <Text style={styles.infoValue}>Sarah (Female)</Text>
+                <Text style={styles.infoLabel}>Project ID</Text>
+                <Text style={styles.infoValue}>{projectId || '-'}</Text>
+              </View>
+              <View style={styles.infoRow}>
+                <Text style={styles.infoLabel}>Backend Status API</Text>
+                <Text style={styles.infoValue}>
+                  {canPollBackendStatus ? 'Available' : 'Unavailable'}
+                </Text>
               </View>
             </View>
           </>
@@ -174,17 +368,23 @@ export const PreviewScreen = ({ navigation, route }: any) => {
       <View style={styles.bottomActions}>
         <Button
           title="Share"
-          onPress={() => {}}
+          onPress={() => {
+            handleShareVideo();
+          }}
           variant="outline"
           size="md"
           style={styles.shareButton}
+          disabled={!videoUrl}
         />
         <Button
-          title="Download"
-          onPress={() => {}}
+          title="Open Video"
+          onPress={() => {
+            handleOpenVideo();
+          }}
           variant="primary"
           size="md"
           style={styles.downloadButton}
+          disabled={!videoUrl}
         />
       </View>
     </SafeAreaView>
@@ -304,6 +504,23 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  videoPlayer: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: Colors.black,
+  },
+  videoOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.35)',
+    gap: Spacing.sm,
+  },
+  videoOverlayText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: '500',
+  },
   videoIcon: {
     fontSize: 48,
     color: Colors.white,
@@ -318,6 +535,54 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textDisabled,
     marginTop: 4,
+  },
+  playerFallbackText: {
+    marginTop: Spacing.sm,
+    fontSize: 12,
+    color: Colors.textTertiary,
+    textAlign: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  statusCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  statusHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  statusLabel: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    fontWeight: '600',
+  },
+  statusValue: {
+    fontSize: 18,
+    color: Colors.white,
+    fontWeight: '700',
+  },
+  statusError: {
+    fontSize: 13,
+    color: Colors.error,
+  },
+  videoUrlText: {
+    fontSize: 12,
+    color: Colors.textSecondary,
+  },
+  statusActions: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+  },
+  statusActionButton: {
+    flex: 1,
   },
   videoInfo: {
     backgroundColor: Colors.surface,
@@ -340,6 +605,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.white,
     fontWeight: '500',
+    maxWidth: '65%',
+    textAlign: 'right',
   },
   scriptContainer: {
     gap: Spacing.lg,

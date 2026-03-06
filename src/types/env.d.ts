@@ -1,5 +1,6 @@
 declare module '@env' {
-  export const BACKEND_BASE_URL: string | undefined;
+  export const BACKEND_CAPTION_URL: string | undefined;
+  export const BACKEND_VIDEO_URL: string | undefined;
 
   // Firebase
   export const FIREBASE_API_KEY: string;

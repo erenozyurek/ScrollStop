@@ -7,26 +7,15 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  Image,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { launchImageLibrary, launchCamera, type Asset } from 'react-native-image-picker';
-import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, TextInput, Chip } from '../../components/common';
+import { createVideoJob } from '../../services/videoApi';
+import { useVideoJobs } from '../../context/VideoJobsContext';
 
-const AUDIENCES = [
-  'Women 18-24',
-  'Women 25-34',
-  'Men 18-24',
-  'Men 25-34',
-  'Parents',
-  'Fitness Lovers',
-  'Tech Enthusiasts',
-  'Beauty & Skincare',
-];
-
+const PLATFORMS = ['TikTok', 'Instagram', 'YouTube'] as const;
 const TONES = [
   'Energetic',
   'Professional',
@@ -34,91 +23,139 @@ const TONES = [
   'Urgent',
   'Funny',
   'Emotional',
-];
+] as const;
+const DURATIONS = ['10s', '15s', '20s'] as const;
+const LANGUAGES = ['Turkish', 'English'] as const;
+const VOICE_GENDERS = ['female', 'male'] as const;
+const VOICE_STYLES = ['friendly', 'energetic', 'serious'] as const;
 
-const DURATIONS = ['15s', '30s', '60s'];
+type PlatformOption = (typeof PLATFORMS)[number];
+type LanguageOption = (typeof LANGUAGES)[number];
+type VoiceGenderOption = (typeof VOICE_GENDERS)[number];
+type VoiceStyleOption = (typeof VOICE_STYLES)[number];
 
 export const CreateAdScreen = ({ navigation }: any) => {
+  const { trackJob } = useVideoJobs();
   const [step, setStep] = useState(1);
-  const [productUrl, setProductUrl] = useState('');
+
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  const [productImage, setProductImage] = useState<Asset | null>(null);
-  const [selectedAudience, setSelectedAudience] = useState<string[]>([]);
+  const [brandName, setBrandName] = useState('');
+
+  const [selectedPlatform, setSelectedPlatform] =
+    useState<PlatformOption>('TikTok');
   const [selectedTone, setSelectedTone] = useState('');
-  const [selectedDuration, setSelectedDuration] = useState('15s');
+  const [selectedDuration, setSelectedDuration] = useState<(typeof DURATIONS)[number]>(
+    '15s',
+  );
+  const [selectedLanguage, setSelectedLanguage] =
+    useState<LanguageOption>('Turkish');
 
-  const toggleAudience = (audience: string) => {
-    setSelectedAudience(prev =>
-      prev.includes(audience)
-        ? prev.filter(a => a !== audience)
-        : [...prev, audience],
-    );
-  };
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [voiceGender, setVoiceGender] = useState<VoiceGenderOption>('female');
+  const [voiceStyle, setVoiceStyle] = useState<VoiceStyleOption>('friendly');
 
-  const handlePickImage = () => {
-    Alert.alert(
-      'Ürün Resmi',
-      'Resmi nereden eklemek istersiniz?',
-      [
-        {
-          text: 'Kamera',
-          onPress: () => {
-            launchCamera(
-              { mediaType: 'photo', maxWidth: 1024, maxHeight: 1024, quality: 0.8 },
-              response => {
-                if (!response.didCancel && !response.errorCode && response.assets?.[0]) {
-                  setProductImage(response.assets[0]);
-                }
-              },
-            );
-          },
-        },
-        {
-          text: 'Galeri',
-          onPress: () => {
-            launchImageLibrary(
-              { mediaType: 'photo', maxWidth: 1024, maxHeight: 1024, quality: 0.8 },
-              response => {
-                if (!response.didCancel && !response.errorCode && response.assets?.[0]) {
-                  setProductImage(response.assets[0]);
-                }
-              },
-            );
-          },
-        },
-        { text: 'İptal', style: 'cancel' },
-      ],
-    );
-  };
+  const [includePrice, setIncludePrice] = useState(false);
+  const [priceText, setPriceText] = useState('');
+  const [cta, setCta] = useState('');
 
-  const handleRemoveImage = () => {
-    setProductImage(null);
-  };
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
 
   const canProceed = () => {
-    switch (step) {
-      case 1:
-        return productName.length > 0;
-      case 2:
-        return selectedAudience.length > 0;
-      case 3:
-        return selectedTone.length > 0 && selectedDuration.length > 0;
-      default:
-        return false;
+    if (step === 1) {
+      return productName.trim().length > 0;
     }
+
+    if (step === 2) {
+      return (
+        selectedPlatform.length > 0 &&
+        selectedTone.trim().length > 0 &&
+        selectedDuration.length > 0 &&
+        selectedLanguage.length > 0
+      );
+    }
+
+    if (step === 3) {
+      if (includePrice && priceText.trim().length === 0) {
+        return false;
+      }
+      if (voiceEnabled && (!voiceGender || !voiceStyle)) {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
   };
 
-  const handleGenerate = () => {
-    navigation.navigate('Generating', {
-      productName,
-      productDescription,
-      productUrl,
-      productImageUri: productImage?.uri || null,
-      audience: selectedAudience,
-      tone: selectedTone,
-      duration: selectedDuration,
-    });
+  const handleGenerate = async () => {
+    if (isSubmitting || !canProceed()) {
+      return;
+    }
+
+    const normalizedProductName = productName.trim();
+    const normalizedDescription = productDescription.trim();
+    const normalizedBrandName = brandName.trim();
+    const normalizedTone = selectedTone.trim();
+    const normalizedCta = cta.trim();
+    const normalizedPriceText = priceText.trim();
+
+    const parsedDuration = Number.parseInt(selectedDuration, 10);
+    const durationSeconds = Number.isNaN(parsedDuration)
+      ? 15
+      : Math.min(20, Math.max(10, parsedDuration));
+
+    setSubmitError('');
+    setIsSubmitting(true);
+
+    try {
+      const job = await createVideoJob({
+        productName: normalizedProductName,
+        productDescription: normalizedDescription || undefined,
+        brandName: normalizedBrandName || undefined,
+        platform: selectedPlatform,
+        durationSeconds,
+        tone: normalizedTone,
+        language: selectedLanguage,
+        voice: voiceEnabled
+          ? {
+              enabled: true,
+              gender: voiceGender,
+              style: voiceStyle,
+            }
+          : {
+              enabled: false,
+            },
+        aspectRatio: '9:16',
+        includePrice,
+        priceText: includePrice ? normalizedPriceText : undefined,
+        cta: normalizedCta || undefined,
+      });
+
+      trackJob({
+        jobId: job.jobId,
+        productName: normalizedProductName,
+        initialStatus: job.status,
+      });
+
+      navigation.navigate('Generating', {
+        jobId: job.jobId,
+        productName: normalizedProductName,
+        productDescription: normalizedDescription,
+        tone: normalizedTone,
+        durationSeconds,
+        platform: selectedPlatform,
+        language: selectedLanguage,
+      });
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Video generation baslatilamadi.';
+      setSubmitError(message);
+      Alert.alert('Generate Error', message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -126,7 +163,6 @@ export const CreateAdScreen = ({ navigation }: any) => {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.flex}>
-        {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity
             onPress={() => {
@@ -137,13 +173,12 @@ export const CreateAdScreen = ({ navigation }: any) => {
               }
             }}
             style={styles.backButton}>
-            <Text style={styles.backText}>←</Text>
+            <Text style={styles.backText}>{'<'}</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Create Ad</Text>
           <Text style={styles.stepIndicator}>{step}/3</Text>
         </View>
 
-        {/* Progress Bar */}
         <View style={styles.progressContainer}>
           <View style={[styles.progressBar, { width: `${(step / 3) * 100}%` }]} />
         </View>
@@ -153,117 +188,60 @@ export const CreateAdScreen = ({ navigation }: any) => {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
-          {/* Step 1: Product Info */}
           {step === 1 && (
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Product Details</Text>
+              <Text style={styles.stepTitle}>Product Basics</Text>
               <Text style={styles.stepSubtitle}>
-                Tell us about your product
+                Required: product name. Brand and description are optional.
               </Text>
 
-              <TextInput
-                label="Product URL (optional)"
-                placeholder="https://yourstore.com/product"
-                value={productUrl}
-                onChangeText={setProductUrl}
-                keyboardType="url"
-                autoCapitalize="none"
-              />
               <TextInput
                 label="Product Name"
                 placeholder="e.g. Blue Light Blocking Glasses"
                 value={productName}
                 onChangeText={setProductName}
               />
+
               <TextInput
-                label="Product Description"
-                placeholder="Describe your product's key features and benefits..."
+                label="Brand Name (optional)"
+                placeholder="e.g. ScrollStop"
+                value={brandName}
+                onChangeText={setBrandName}
+              />
+
+              <TextInput
+                label="Product Description (optional)"
+                placeholder="Key features, benefits, use-cases..."
                 value={productDescription}
                 onChangeText={setProductDescription}
                 multiline
                 numberOfLines={4}
                 style={styles.textarea}
               />
-
-              {/* Product Image */}
-              <Text style={styles.imageLabel}>Product Image (optional)</Text>
-              {productImage ? (
-                <View style={styles.imagePreviewContainer}>
-                  <Image
-                    source={{ uri: productImage.uri }}
-                    style={styles.imagePreview}
-                    resizeMode="cover"
-                  />
-                  <View style={styles.imageActions}>
-                    <TouchableOpacity
-                      style={styles.imageActionBtn}
-                      onPress={handlePickImage}>
-                      <Feather name="refresh-cw" size={18} color={Colors.white} />
-                      <Text style={styles.imageActionText}>Değiştir</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.imageActionBtn, styles.imageRemoveBtn]}
-                      onPress={handleRemoveImage}>
-                      <Feather name="trash-2" size={18} color="#FF4444" />
-                      <Text style={[styles.imageActionText, { color: '#FF4444' }]}>Kaldır</Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              ) : (
-                <TouchableOpacity
-                  style={styles.imagePicker}
-                  onPress={handlePickImage}
-                  activeOpacity={0.7}>
-                  <View style={styles.imagePickerIconContainer}>
-                    <Feather name="image" size={32} color={Colors.textTertiary} />
-                  </View>
-                  <Text style={styles.imagePickerTitle}>Ürün resmi ekle</Text>
-                  <Text style={styles.imagePickerSubtitle}>Kamera veya galeriden seçin</Text>
-                </TouchableOpacity>
-              )}
             </View>
           )}
 
-          {/* Step 2: Target Audience */}
           {step === 2 && (
             <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Target Audience</Text>
+              <Text style={styles.stepTitle}>Core Settings</Text>
               <Text style={styles.stepSubtitle}>
-                Who should this ad target?
+                These fields are required by backend validation.
               </Text>
 
+              <Text style={styles.sectionLabel}>PLATFORM</Text>
               <View style={styles.chipGrid}>
-                {AUDIENCES.map(audience => (
+                {PLATFORMS.map(platform => (
                   <Chip
-                    key={audience}
-                    label={audience}
-                    selected={selectedAudience.includes(audience)}
-                    onPress={() => toggleAudience(audience)}
+                    key={platform}
+                    label={platform}
+                    selected={selectedPlatform === platform}
+                    onPress={() => setSelectedPlatform(platform)}
                     style={styles.chip}
                   />
                 ))}
               </View>
 
-              {selectedAudience.length > 0 && (
-                <View style={styles.selectedInfo}>
-                  <Text style={styles.selectedLabel}>Selected:</Text>
-                  <Text style={styles.selectedText}>
-                    {selectedAudience.join(', ')}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* Step 3: Ad Settings */}
-          {step === 3 && (
-            <View style={styles.stepContent}>
-              <Text style={styles.stepTitle}>Ad Settings</Text>
-              <Text style={styles.stepSubtitle}>
-                Choose the tone and duration
-              </Text>
-
-              <Text style={styles.sectionLabel}>TONE</Text>
+              <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>TONE</Text>
               <View style={styles.chipGrid}>
                 {TONES.map(tone => (
                   <Chip
@@ -276,70 +254,162 @@ export const CreateAdScreen = ({ navigation }: any) => {
                 ))}
               </View>
 
-              <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>
-                DURATION
-              </Text>
+              <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>DURATION</Text>
               <View style={styles.durationRow}>
                 {DURATIONS.map(duration => (
                   <TouchableOpacity
                     key={duration}
                     style={[
                       styles.durationCard,
-                      selectedDuration === duration &&
-                        styles.durationCardSelected,
+                      selectedDuration === duration && styles.durationCardSelected,
                     ]}
                     onPress={() => setSelectedDuration(duration)}>
                     <Text
                       style={[
                         styles.durationValue,
-                        selectedDuration === duration &&
-                          styles.durationValueSelected,
+                        selectedDuration === duration && styles.durationValueSelected,
                       ]}>
                       {duration}
                     </Text>
                     <Text
                       style={[
                         styles.durationLabel,
-                        selectedDuration === duration &&
-                          styles.durationLabelSelected,
+                        selectedDuration === duration && styles.durationLabelSelected,
                       ]}>
-                      {duration === '15s'
+                      {duration === '10s'
                         ? 'Quick'
-                        : duration === '30s'
-                        ? 'Standard'
-                        : 'Extended'}
+                        : duration === '15s'
+                          ? 'Standard'
+                          : 'Detailed'}
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              {/* Summary */}
+              <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>LANGUAGE</Text>
+              <View style={styles.chipGrid}>
+                {LANGUAGES.map(language => (
+                  <Chip
+                    key={language}
+                    label={language}
+                    selected={selectedLanguage === language}
+                    onPress={() => setSelectedLanguage(language)}
+                    style={styles.chip}
+                  />
+                ))}
+              </View>
+            </View>
+          )}
+
+          {step === 3 && (
+            <View style={styles.stepContent}>
+              <Text style={styles.stepTitle}>Optional Settings</Text>
+              <Text style={styles.stepSubtitle}>
+                Voiceover, price highlight and CTA options.
+              </Text>
+
+              <Text style={styles.sectionLabel}>VOICEOVER</Text>
+              <View style={styles.chipGrid}>
+                <Chip
+                  label="Disabled"
+                  selected={!voiceEnabled}
+                  onPress={() => setVoiceEnabled(false)}
+                  style={styles.chip}
+                />
+                <Chip
+                  label="Enabled"
+                  selected={voiceEnabled}
+                  onPress={() => setVoiceEnabled(true)}
+                  style={styles.chip}
+                />
+              </View>
+
+              {voiceEnabled ? (
+                <>
+                  <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>VOICE GENDER</Text>
+                  <View style={styles.chipGrid}>
+                    {VOICE_GENDERS.map(gender => (
+                      <Chip
+                        key={gender}
+                        label={gender}
+                        selected={voiceGender === gender}
+                        onPress={() => setVoiceGender(gender)}
+                        style={styles.chip}
+                      />
+                    ))}
+                  </View>
+
+                  <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>VOICE STYLE</Text>
+                  <View style={styles.chipGrid}>
+                    {VOICE_STYLES.map(style => (
+                      <Chip
+                        key={style}
+                        label={style}
+                        selected={voiceStyle === style}
+                        onPress={() => setVoiceStyle(style)}
+                        style={styles.chip}
+                      />
+                    ))}
+                  </View>
+                </>
+              ) : null}
+
+              <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>INCLUDE PRICE</Text>
+              <View style={styles.chipGrid}>
+                <Chip
+                  label="No"
+                  selected={!includePrice}
+                  onPress={() => setIncludePrice(false)}
+                  style={styles.chip}
+                />
+                <Chip
+                  label="Yes"
+                  selected={includePrice}
+                  onPress={() => setIncludePrice(true)}
+                  style={styles.chip}
+                />
+              </View>
+
+              {includePrice ? (
+                <TextInput
+                  label="Price Text"
+                  placeholder="e.g. 40% OFF Today"
+                  value={priceText}
+                  onChangeText={setPriceText}
+                />
+              ) : null}
+
+              <TextInput
+                label="CTA (optional)"
+                placeholder="e.g. Shop now"
+                value={cta}
+                onChangeText={setCta}
+              />
+
               <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Summary</Text>
-                <SummaryRow label="Product" value={productName} />
-                <SummaryRow
-                  label="Image"
-                  value={productImage ? '✓ Eklendi' : 'Yok'}
-                />
-                <SummaryRow
-                  label="Audience"
-                  value={selectedAudience.join(', ')}
-                />
-                <SummaryRow label="Tone" value={selectedTone} />
+                <Text style={styles.summaryTitle}>Request Summary</Text>
+                <SummaryRow label="Product" value={productName || '-'} />
+                <SummaryRow label="Brand" value={brandName || '-'} />
+                <SummaryRow label="Platform" value={selectedPlatform} />
+                <SummaryRow label="Tone" value={selectedTone || '-'} />
                 <SummaryRow label="Duration" value={selectedDuration} />
+                <SummaryRow label="Language" value={selectedLanguage} />
+                <SummaryRow label="Voice" value={voiceEnabled ? 'Enabled' : 'Disabled'} />
+                <SummaryRow label="Include Price" value={includePrice ? 'Yes' : 'No'} />
               </View>
             </View>
           )}
         </ScrollView>
 
-        {/* Bottom Action */}
         <View style={styles.bottomAction}>
+          {submitError ? <Text style={styles.submitErrorText}>{submitError}</Text> : null}
           <Button
-            title={step < 3 ? 'Continue' : 'Generate Ad  ⚡'}
+            title={step < 3 ? 'Continue' : 'Generate Ad'}
             onPress={step < 3 ? () => setStep(step + 1) : handleGenerate}
             variant="primary"
             size="lg"
-            disabled={!canProceed()}
+            disabled={!canProceed() || isSubmitting}
+            loading={isSubmitting}
             style={styles.actionButton}
           />
         </View>
@@ -432,77 +502,12 @@ const styles = StyleSheet.create({
     minHeight: 100,
     textAlignVertical: 'top',
   },
-  imageLabel: {
-    fontSize: 14,
+  sectionLabel: {
+    fontSize: 12,
     fontWeight: '600',
-    color: Colors.textSecondary,
-    marginBottom: Spacing.sm,
-    marginTop: Spacing.md,
-  },
-  imagePicker: {
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
-    borderRadius: BorderRadius.lg,
-    paddingVertical: Spacing.xl,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.surface,
-  },
-  imagePickerIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.full,
-    backgroundColor: Colors.background,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.md,
-  },
-  imagePickerTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.white,
-    marginBottom: 4,
-  },
-  imagePickerSubtitle: {
-    fontSize: 13,
     color: Colors.textTertiary,
-  },
-  imagePreviewContainer: {
-    borderRadius: BorderRadius.lg,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: Colors.border,
-    backgroundColor: Colors.surface,
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
-  },
-  imageActions: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: Spacing.lg,
-    paddingVertical: Spacing.md,
-  },
-  imageActionBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderRadius: BorderRadius.md,
-    backgroundColor: Colors.background,
-  },
-  imageRemoveBtn: {
-    backgroundColor: 'rgba(255, 68, 68, 0.1)',
-  },
-  imageActionText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.white,
+    letterSpacing: 1,
+    marginBottom: Spacing.md,
   },
   chipGrid: {
     flexDirection: 'row',
@@ -511,34 +516,6 @@ const styles = StyleSheet.create({
   },
   chip: {
     marginBottom: 0,
-  },
-  selectedInfo: {
-    marginTop: Spacing.lg,
-    padding: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  selectedLabel: {
-    fontSize: 12,
-    color: Colors.textTertiary,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 4,
-  },
-  selectedText: {
-    fontSize: 14,
-    color: Colors.white,
-    fontWeight: '500',
-  },
-  sectionLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.textTertiary,
-    letterSpacing: 1,
-    marginBottom: Spacing.md,
   },
   durationRow: {
     flexDirection: 'row',
@@ -611,5 +588,11 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     width: '100%',
+  },
+  submitErrorText: {
+    color: Colors.error,
+    fontSize: 13,
+    marginBottom: Spacing.sm,
+    textAlign: 'center',
   },
 });

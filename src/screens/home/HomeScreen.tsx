@@ -16,34 +16,12 @@ import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, Card, StatCard } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
+import { useVideoJobs, type TrackedVideoJob } from '../../context/VideoJobsContext';
 import { getRecentCaptions, RecentCaption } from '../../services/captionApi';
-
-const RECENT_PROJECTS = [
-  {
-    id: '1',
-    name: 'Blue Light Glasses Ad',
-    status: 'completed',
-    date: '2 hours ago',
-    duration: '15s',
-  },
-  {
-    id: '2',
-    name: 'Yoga Mat Promo',
-    status: 'processing',
-    date: '5 hours ago',
-    duration: '30s',
-  },
-  {
-    id: '3',
-    name: 'Phone Case TikTok',
-    status: 'completed',
-    date: 'Yesterday',
-    duration: '15s',
-  },
-];
 
 export const HomeScreen = ({ navigation }: any) => {
   const { user } = useAuth();
+  const { jobs } = useVideoJobs();
   const firstName = user?.displayName?.split(' ')[0] || 'Creator';
   const initial = firstName.charAt(0).toUpperCase();
 
@@ -86,6 +64,11 @@ export const HomeScreen = ({ navigation }: any) => {
     };
   }, []);
 
+  const recentVideoJobs = jobs.slice(0, 3);
+  const activeVideoJobs = jobs.filter(
+    job => job.status === 'pending' || job.status === 'processing',
+  );
+
   // Caption tarihini formatla
   const formatDate = (dateString: string): string => {
     if (!dateString) return '';
@@ -105,37 +88,67 @@ export const HomeScreen = ({ navigation }: any) => {
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
-  const renderProject = ({ item }: any) => (
-    <Card
-      style={styles.projectCard}
-      onPress={() => navigation.navigate('Preview', { projectId: item.id })}>
-      <View style={styles.projectHeader}>
-        <View style={styles.projectThumbnail}>
-          <Text style={styles.thumbnailIcon}>🎬</Text>
-        </View>
-        <View style={styles.projectInfo}>
-          <Text style={styles.projectName}>{item.name}</Text>
-          <Text style={styles.projectMeta}>
-            {item.duration} • {item.date}
-          </Text>
-        </View>
-        <View
-          style={[
-            styles.statusBadge,
-            item.status === 'completed'
-              ? styles.statusCompleted
-              : styles.statusProcessing,
-          ]}>
-          <Text
+  const getVideoStatusLabel = (status: TrackedVideoJob['status']) => {
+    if (status === 'success') return 'completed';
+    if (status === 'error') return 'failed';
+    return 'processing';
+  };
+
+  const renderProject = ({ item }: { item: TrackedVideoJob }) => {
+    const status = getVideoStatusLabel(item.status);
+    const durationText = status === 'processing' ? 'In progress' : 'Ready';
+    const dateText = formatDate(new Date(item.createdAtMs).toISOString());
+
+    return (
+      <Card
+        style={styles.projectCard}
+        onPress={() =>
+          navigation.navigate('Preview', {
+            projectId: item.jobId,
+            videoUrl: item.videoUrl,
+            status: item.status,
+            error: item.error,
+          })
+        }>
+        <View style={styles.projectHeader}>
+          <View style={styles.projectThumbnail}>
+            <Text style={styles.thumbnailIcon}>🎬</Text>
+          </View>
+          <View style={styles.projectInfo}>
+            <Text style={styles.projectName}>{item.productName || 'Video Ad'}</Text>
+            <Text style={styles.projectMeta}>
+              {durationText} • {dateText}
+            </Text>
+          </View>
+          <View
             style={[
-              styles.statusText,
-              item.status === 'completed'
-                ? styles.statusTextCompleted
-                : styles.statusTextProcessing,
+              styles.statusBadge,
+              status === 'completed' ? styles.statusCompleted : styles.statusProcessing,
+              status === 'failed' ? styles.statusFailed : null,
             ]}>
-            {item.status === 'completed' ? '✓' : '◌'}
-          </Text>
+            <Text
+              style={[
+                styles.statusText,
+                status === 'completed' ? styles.statusTextCompleted : styles.statusTextProcessing,
+                status === 'failed' ? styles.statusTextFailed : null,
+              ]}>
+              {status === 'completed' ? '✓' : status === 'failed' ? '!' : '◌'}
+            </Text>
+          </View>
         </View>
+      </Card>
+    );
+  };
+
+  const renderEmptyProjects = () => (
+    <Card
+      style={styles.emptyProjectCard}
+      onPress={() => navigation.navigate('CreateAd')}>
+      <View style={styles.emptyProjectContent}>
+        <Text style={styles.emptyProjectTitle}>No video jobs yet</Text>
+        <Text style={styles.emptyProjectSubtitle}>
+          Start a video and continue using the app while rendering runs in background.
+        </Text>
       </View>
     </Card>
   );
@@ -256,9 +269,20 @@ export const HomeScreen = ({ navigation }: any) => {
             </TouchableOpacity>
           </View>
 
-          {RECENT_PROJECTS.map(item => (
-            <View key={item.id}>{renderProject({ item })}</View>
-          ))}
+          {activeVideoJobs.length > 0 ? (
+            <View style={styles.activeJobsHint}>
+              <View style={styles.activeJobsDot} />
+              <Text style={styles.activeJobsText}>
+                {activeVideoJobs.length} video job running in background
+              </Text>
+            </View>
+          ) : null}
+
+          {recentVideoJobs.length === 0
+            ? renderEmptyProjects()
+            : recentVideoJobs.map(item => (
+                <View key={item.jobId}>{renderProject({ item })}</View>
+              ))}
         </View>
 
         {/* Credit Banner */}
@@ -636,6 +660,39 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     padding: Spacing.md,
   },
+  emptyProjectCard: {
+    padding: Spacing.lg,
+  },
+  emptyProjectContent: {
+    gap: Spacing.xs,
+  },
+  emptyProjectTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  emptyProjectSubtitle: {
+    fontSize: 13,
+    color: Colors.textTertiary,
+    lineHeight: 18,
+  },
+  activeJobsHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.xs,
+    marginBottom: Spacing.sm,
+  },
+  activeJobsDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.warning,
+  },
+  activeJobsText: {
+    fontSize: 12,
+    color: Colors.textTertiary,
+    fontWeight: '500',
+  },
   projectHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -678,6 +735,9 @@ const styles = StyleSheet.create({
   statusProcessing: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
+  statusFailed: {
+    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+  },
   statusText: {
     fontSize: 14,
     fontWeight: '600',
@@ -687,6 +747,9 @@ const styles = StyleSheet.create({
   },
   statusTextProcessing: {
     color: Colors.textTertiary,
+  },
+  statusTextFailed: {
+    color: Colors.error,
   },
   creditBanner: {
     alignItems: 'center',

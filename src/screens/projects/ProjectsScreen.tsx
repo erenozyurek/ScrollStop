@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,66 +11,60 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import Feather from 'react-native-vector-icons/Feather';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Card } from '../../components/common';
+import { useVideoJobs, type TrackedVideoJob } from '../../context/VideoJobsContext';
 
 const FILTERS = ['All', 'Completed', 'Processing', 'Failed'] as const;
 type FilterType = (typeof FILTERS)[number];
 
-const PROJECTS = [
-  {
-    id: '1',
-    name: 'Blue Light Glasses Ad',
-    status: 'completed',
-    date: '2 hours ago',
-    duration: '15s',
-  },
-  {
-    id: '2',
-    name: 'Yoga Mat Promo',
-    status: 'processing',
-    date: '5 hours ago',
-    duration: '30s',
-  },
-  {
-    id: '3',
-    name: 'Phone Case TikTok',
-    status: 'completed',
-    date: 'Yesterday',
-    duration: '15s',
-  },
-  {
-    id: '4',
-    name: 'Wireless Earbuds Review',
-    status: 'completed',
-    date: '2 days ago',
-    duration: '30s',
-  },
-  {
-    id: '5',
-    name: 'Skincare Routine',
-    status: 'completed',
-    date: '3 days ago',
-    duration: '60s',
-  },
-  {
-    id: '6',
-    name: 'Fitness Band Promo',
-    status: 'failed',
-    date: '4 days ago',
-    duration: '15s',
-  },
-];
+type ProjectStatus = 'completed' | 'processing' | 'failed';
+
+const mapStatus = (status: TrackedVideoJob['status']): ProjectStatus => {
+  if (status === 'success') return 'completed';
+  if (status === 'error') return 'failed';
+  return 'processing';
+};
+
+const formatRelativeDate = (timestampMs: number): string => {
+  const now = Date.now();
+  const diffMs = Math.max(0, now - timestampMs);
+  const diffMins = Math.floor(diffMs / 60000);
+
+  if (diffMins < 1) return 'Just now';
+  if (diffMins < 60) return `${diffMins}m ago`;
+
+  const diffHours = Math.floor(diffMins / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+
+  return new Date(timestampMs).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+};
 
 export const ProjectsScreen = ({ navigation }: any) => {
+  const { jobs } = useVideoJobs();
   const [activeFilter, setActiveFilter] = useState<FilterType>('All');
 
   const filteredProjects = useMemo(() => {
-    if (activeFilter === 'All') return PROJECTS;
-    return PROJECTS.filter(
-      p => p.status === activeFilter.toLowerCase(),
-    );
-  }, [activeFilter]);
+    const normalized = jobs
+      .map(job => ({
+        ...job,
+        mappedStatus: mapStatus(job.status),
+      }))
+      .sort((a, b) => b.createdAtMs - a.createdAtMs);
 
-  const getStatusColor = (status: string) => {
+    if (activeFilter === 'All') {
+      return normalized;
+    }
+
+    const expected = activeFilter.toLowerCase();
+    return normalized.filter(project => project.mappedStatus === expected);
+  }, [activeFilter, jobs]);
+
+  const getStatusColor = (status: ProjectStatus) => {
     switch (status) {
       case 'completed':
         return Colors.success;
@@ -83,30 +77,35 @@ export const ProjectsScreen = ({ navigation }: any) => {
     }
   };
 
-  const renderProject = ({ item }: any) => (
+  const renderProject = ({ item }: { item: TrackedVideoJob & { mappedStatus: ProjectStatus } }) => (
     <Card
       style={styles.projectCard}
-      onPress={() => navigation.navigate('Preview', { projectId: item.id })}>
+      onPress={() =>
+        navigation.navigate('Preview', {
+          projectId: item.jobId,
+          videoUrl: item.videoUrl,
+          status: item.status,
+          error: item.error,
+        })
+      }>
       <View style={styles.projectRow}>
         <View style={styles.thumbnail}>
           <Text style={styles.thumbnailIcon}>🎬</Text>
         </View>
         <View style={styles.projectInfo}>
-          <Text style={styles.projectName}>{item.name}</Text>
+          <Text style={styles.projectName}>{item.productName || 'Video Ad'}</Text>
           <View style={styles.projectMeta}>
             <View
               style={[
                 styles.statusDot,
-                { backgroundColor: getStatusColor(item.status) },
+                { backgroundColor: getStatusColor(item.mappedStatus) },
               ]}
             />
             <Text style={styles.statusText}>
-              {item.status.charAt(0).toUpperCase() + item.status.slice(1)}
+              {item.mappedStatus.charAt(0).toUpperCase() + item.mappedStatus.slice(1)}
             </Text>
             <Text style={styles.metaSeparator}>•</Text>
-            <Text style={styles.metaText}>{item.duration}</Text>
-            <Text style={styles.metaSeparator}>•</Text>
-            <Text style={styles.metaText}>{item.date}</Text>
+            <Text style={styles.metaText}>{formatRelativeDate(item.createdAtMs)}</Text>
           </View>
         </View>
         <Text style={styles.arrow}>›</Text>
@@ -116,7 +115,6 @@ export const ProjectsScreen = ({ navigation }: any) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => navigation.goBack()}
@@ -129,7 +127,6 @@ export const ProjectsScreen = ({ navigation }: any) => {
         </View>
       </View>
 
-      {/* Filter Tabs */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -154,11 +151,10 @@ export const ProjectsScreen = ({ navigation }: any) => {
         ))}
       </ScrollView>
 
-      {/* Projects List */}
       <FlatList
         data={filteredProjects}
         renderItem={renderProject}
-        keyExtractor={item => item.id}
+        keyExtractor={item => item.jobId}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={

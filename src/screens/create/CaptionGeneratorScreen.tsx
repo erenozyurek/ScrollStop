@@ -22,7 +22,7 @@ const PLATFORMS = ['Instagram', 'TikTok', 'YouTube', 'X (Twitter)', 'Facebook'];
 const TONES = ['Professional', 'Playful', 'Bold', 'Minimal', 'Urgent', 'Luxury'];
 const CAPTION_TYPES = ['Product Ad', 'Story Hook', 'CTA Focused', 'Testimonial', 'Launch Hype'];
 
-const LANGUAGES = ['English', 'Turkish'];
+const LANGUAGES = ['Turkish', 'English'];
 
 const pickDefaultsByPlatforms = (platforms: string[]) => {
   const isTikTok = platforms.includes('TikTok');
@@ -46,7 +46,7 @@ export const CaptionGeneratorScreen = ({ navigation }: any) => {
   const [selectedPlatforms, setSelectedPlatforms] = useState<string[]>([]);
   const [selectedTone, setSelectedTone] = useState('');
   const [selectedType, setSelectedType] = useState('');
-  const [selectedLanguage, setSelectedLanguage] = useState('English');
+  const [selectedLanguage, setSelectedLanguage] = useState('Turkish');
 
   const [generatedCaptions, setGeneratedCaptions] = useState<GeneratedCaption[]>([]);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);

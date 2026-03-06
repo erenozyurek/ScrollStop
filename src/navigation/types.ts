@@ -5,15 +5,19 @@ export type RootStackParamList = {
   Main: undefined;
   CreateAd: undefined;
   Generating: {
+    jobId: string;
     productName: string;
     productDescription: string;
-    productUrl: string;
-    audience: string[];
     tone: string;
-    duration: string;
+    durationSeconds: number;
+    platform: 'TikTok' | 'Instagram' | 'YouTube';
+    language: 'English' | 'Turkish';
   };
   Preview: {
     projectId: string;
+    videoUrl?: string | null;
+    status?: 'pending' | 'processing' | 'success' | 'error';
+    error?: string | null;
   };
   Pricing: undefined;
   Projects: undefined;

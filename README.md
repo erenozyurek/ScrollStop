@@ -164,14 +164,17 @@ Beklenen endpointler:
 - `GET /api/captions/recent?limit=10` (Authorization: `Bearer <Firebase ID Token>`)
 - `GET /health`
 
-Opsiyonel ortam degiskenleri:
+Ortam degiskenleri:
 
 ```sh
-BACKEND_BASE_URL=http://localhost:8087
+BACKEND_CAPTION_URL=https://scrollstop-api-263965967395.europe-west1.run.app
+BACKEND_VIDEO_URL=https://scrollstop-video-263965967395.europe-west1.run.app
 ```
 
 Notlar:
-- `BACKEND_BASE_URL` verilmezse app dev ortaminda birden fazla local adrese fallback dener (`8087`, `8000`, `8787`, `8081`).
+- Caption istekleri `BACKEND_CAPTION_URL` uzerinden gider.
+- Video generate/status/recent istekleri `BACKEND_VIDEO_URL` uzerinden gider.
+- Bu iki env verilmezse uygulama yukaridaki production URL'leri default kullanir.
 - Android emulator icin host fallback'i `10.0.2.2` ile de denenir.
 
 ---

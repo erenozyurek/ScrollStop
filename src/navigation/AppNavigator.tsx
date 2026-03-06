@@ -82,7 +82,7 @@ export const AppNavigator = () => {
         <Stack.Screen
           name="Generating"
           component={GeneratingScreen}
-          options={{ gestureEnabled: false }}
+          options={{ gestureEnabled: true }}
         />
         <Stack.Screen name="Preview" component={PreviewScreen} />
         <Stack.Screen name="Projects" component={ProjectsScreen} />

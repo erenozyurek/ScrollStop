@@ -1,4 +1,4 @@
-import { BACKEND_BASE_URL } from '@env';
+import { BACKEND_CAPTION_URL } from '@env';
 import { NativeModules, Platform } from 'react-native';
 import { getFirebaseIdToken } from './authService';
 
@@ -36,7 +36,8 @@ export interface RecentCaption {
   createdAt: string;
 }
 
-const DEFAULT_HERD_BACKEND_URL = 'http://scrollstop-backend.test';
+const DEFAULT_CAPTION_BACKEND_URL =
+  'https://scrollstop-api-263965967395.europe-west1.run.app';
 const BACKEND_PORT_CANDIDATES = [8087, 8000, 8787, 8081];
 const CAPTION_ENDPOINT_PATHS = ['/api/captions'];
 const RECENT_CAPTION_ENDPOINT_PATH = '/api/captions/recent';
@@ -93,7 +94,7 @@ const isTestDomainBaseUrl = (url: string): boolean => {
 const getCaptionApiBaseUrls = (): string[] => {
   const urls = new Set<string>();
 
-  const envBase = normalizeBaseUrl(BACKEND_BASE_URL || DEFAULT_HERD_BACKEND_URL);
+  const envBase = normalizeBaseUrl(BACKEND_CAPTION_URL || DEFAULT_CAPTION_BACKEND_URL);
   if (envBase) {
     urls.add(envBase);
 
@@ -233,23 +234,61 @@ const toReadableErrorMessage = (
   return plainText;
 };
 
+const getAuthTokenOrThrow = async (forceRefresh = false): Promise<string> => {
+  const idToken = await getFirebaseIdToken(forceRefresh);
+  if (!idToken) {
+    throw new Error('Oturum dogrulanamadi. Lutfen tekrar giris yap.');
+  }
+  return idToken;
+};
+
+const fetchWithBearerRetry = async (
+  endpointUrl: string,
+  init: Omit<RequestInit, 'headers'> & {
+    headers?: Record<string, string>;
+  },
+  token: string,
+): Promise<{ response: Response; token: string }> => {
+  const withToken = (idToken: string) =>
+    fetch(endpointUrl, {
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        Authorization: `Bearer ${idToken}`,
+      },
+    });
+
+  let activeToken = token;
+  let response = await withToken(activeToken);
+
+  if (response.status !== 401) {
+    return { response, token: activeToken };
+  }
+
+  const refreshedToken = await getAuthTokenOrThrow(true).catch(() => null);
+  if (!refreshedToken || refreshedToken === activeToken) {
+    return { response, token: activeToken };
+  }
+
+  activeToken = refreshedToken;
+  response = await withToken(activeToken);
+  return { response, token: activeToken };
+};
+
 export const generateCaptions = async (
   input: CaptionGenerationInput,
 ): Promise<GeneratedCaption[]> => {
   const baseUrls = getCaptionApiBaseUrls();
-  const explicitBase = normalizeBaseUrl(BACKEND_BASE_URL || DEFAULT_HERD_BACKEND_URL);
+  const explicitBase = normalizeBaseUrl(BACKEND_CAPTION_URL || DEFAULT_CAPTION_BACKEND_URL);
   const explicitIsTestDomain = isTestDomainBaseUrl(explicitBase);
   const targets = baseUrls.flatMap(baseUrl =>
     CAPTION_ENDPOINT_PATHS.map(path => ({ baseUrl, path })),
   );
   let lastError: Error | null = null;
   let attemptedConnection = false;
-  const hasExplicitBackendUrl = normalizeBaseUrl(BACKEND_BASE_URL || '') !== '';
+  const hasExplicitBackendUrl = normalizeBaseUrl(BACKEND_CAPTION_URL || '') !== '';
 
-  const idToken = await getFirebaseIdToken();
-  if (!idToken) {
-    throw new Error('Oturum dogrulanamadi. Lutfen tekrar giris yap.');
-  }
+  let idToken = await getAuthTokenOrThrow();
 
   for (let i = 0; i < targets.length; i += 1) {
     const { baseUrl, path } = targets[i];
@@ -257,14 +296,19 @@ export const generateCaptions = async (
 
     try {
       const endpointUrl = `${baseUrl}${path}`;
-      const response = await fetch(endpointUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+      const requestResult = await fetchWithBearerRetry(
+        endpointUrl,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(input),
         },
-        body: JSON.stringify(input),
-      });
+        idToken,
+      );
+      idToken = requestResult.token;
+      const response = requestResult.response;
 
       attemptedConnection = true;
       const rawText = await response.text();
@@ -320,8 +364,8 @@ export const generateCaptions = async (
 
   if (hasExplicitBackendUrl && lastError) {
     throw new Error(
-      `${lastError.message} (BACKEND_BASE_URL: ${normalizeBaseUrl(
-        BACKEND_BASE_URL || '',
+      `${lastError.message} (BACKEND_CAPTION_URL: ${normalizeBaseUrl(
+        BACKEND_CAPTION_URL || '',
       )}, denenen adresler: ${baseUrls.join(', ')})`,
     );
   }
@@ -334,7 +378,7 @@ export const getRecentCaptions = async (
 ): Promise<RecentCaption[]> => {
   const safeLimit = Math.max(1, Math.min(30, Math.floor(limit)));
   const baseUrls = getCaptionApiBaseUrls();
-  const explicitBase = normalizeBaseUrl(BACKEND_BASE_URL || DEFAULT_HERD_BACKEND_URL);
+  const explicitBase = normalizeBaseUrl(BACKEND_CAPTION_URL || DEFAULT_CAPTION_BACKEND_URL);
   const explicitIsTestDomain = isTestDomainBaseUrl(explicitBase);
   const targets = baseUrls.map(baseUrl => ({
     baseUrl,
@@ -342,12 +386,9 @@ export const getRecentCaptions = async (
   }));
   let lastError: Error | null = null;
   let attemptedConnection = false;
-  const hasExplicitBackendUrl = normalizeBaseUrl(BACKEND_BASE_URL || '') !== '';
+  const hasExplicitBackendUrl = normalizeBaseUrl(BACKEND_CAPTION_URL || '') !== '';
 
-  const idToken = await getFirebaseIdToken();
-  if (!idToken) {
-    throw new Error('Oturum dogrulanamadi. Lutfen tekrar giris yap.');
-  }
+  let idToken = await getAuthTokenOrThrow();
 
   for (let i = 0; i < targets.length; i += 1) {
     const { baseUrl, path } = targets[i];
@@ -355,13 +396,18 @@ export const getRecentCaptions = async (
 
     try {
       const endpointUrl = `${baseUrl}${path}`;
-      const response = await fetch(endpointUrl, {
-        method: 'GET',
-        headers: {
-          Accept: 'application/json',
-          Authorization: `Bearer ${idToken}`,
+      const requestResult = await fetchWithBearerRetry(
+        endpointUrl,
+        {
+          method: 'GET',
+          headers: {
+            Accept: 'application/json',
+          },
         },
-      });
+        idToken,
+      );
+      idToken = requestResult.token;
+      const response = requestResult.response;
 
       attemptedConnection = true;
       const rawText = await response.text();
@@ -413,8 +459,8 @@ export const getRecentCaptions = async (
 
   if (hasExplicitBackendUrl && lastError) {
     throw new Error(
-      `${lastError.message} (BACKEND_BASE_URL: ${normalizeBaseUrl(
-        BACKEND_BASE_URL || '',
+      `${lastError.message} (BACKEND_CAPTION_URL: ${normalizeBaseUrl(
+        BACKEND_CAPTION_URL || '',
       )}, denenen adresler: ${baseUrls.join(', ')})`,
     );
   }

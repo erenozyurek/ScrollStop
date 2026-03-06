@@ -284,12 +284,14 @@ export const getCurrentUser = (): FirebaseUser | null => {
 // iOS için: kayıtlı auth verisini al
 export const getIOSAuthData = getIOSAuth;
 
-export const getFirebaseIdToken = async (): Promise<string | null> => {
+export const getFirebaseIdToken = async (
+  forceRefresh = false,
+): Promise<string | null> => {
   if (Platform.OS === 'ios') {
     const stored = await getIOSAuth();
     if (!stored) return null;
 
-    if (stored.expiresAt < Date.now()) {
+    if (forceRefresh || stored.expiresAt < Date.now()) {
       const refreshed = await refreshIOSToken(stored.refreshToken);
       if (!refreshed) {
         await clearIOSAuth();
@@ -305,7 +307,7 @@ export const getFirebaseIdToken = async (): Promise<string | null> => {
   if (!user) return null;
 
   try {
-    return await user.getIdToken();
+    return await user.getIdToken(forceRefresh);
   } catch {
     return null;
   }
