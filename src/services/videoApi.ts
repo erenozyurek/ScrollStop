@@ -4,6 +4,13 @@ import { getFirebaseIdToken } from './authService';
 
 export type VideoJobStatus = 'pending' | 'processing' | 'success' | 'error';
 
+export type ProductImageInput = {
+  uri: string;
+  type?: string;
+  name?: string;
+  note?: string;
+};
+
 export type VideoGenerationInput = {
   productName: string;
   productDescription?: string;
@@ -21,6 +28,9 @@ export type VideoGenerationInput = {
   includePrice?: boolean;
   priceText?: string;
   cta?: string;
+  productImages?: ProductImageInput[];
+  referenceImageUrls?: string[];
+  referenceImageNotes?: string[];
 };
 
 export type VideoJobCreateResponse = {
@@ -260,6 +270,89 @@ const fetchWithBearerRetry = async (
   return { response, token: activeToken };
 };
 
+const hasProductImages = (input: VideoGenerationInput): boolean =>
+  Array.isArray(input.productImages) &&
+  input.productImages.some(image => String(image?.uri || '').trim().length > 0);
+
+const buildVideoCreateBody = (input: VideoGenerationInput): string | FormData => {
+  if (!hasProductImages(input)) {
+    return JSON.stringify(input);
+  }
+
+  const form = new FormData();
+  form.append('productName', input.productName);
+
+  if (input.productDescription) form.append('productDescription', input.productDescription);
+  if (input.brandName) form.append('brandName', input.brandName);
+  form.append('platform', input.platform);
+  form.append('durationSeconds', String(input.durationSeconds));
+  form.append('tone', input.tone);
+  form.append('language', input.language);
+  form.append('aspectRatio', input.aspectRatio || '9:16');
+  form.append('includePrice', input.includePrice ? '1' : '0');
+  if (input.priceText) form.append('priceText', input.priceText);
+  if (input.cta) form.append('cta', input.cta);
+
+  if (input.voice) {
+    form.append('voice[enabled]', input.voice.enabled ? '1' : '0');
+    if (input.voice.gender) {
+      form.append('voice[gender]', input.voice.gender);
+    }
+    if (input.voice.style) {
+      form.append('voice[style]', input.voice.style);
+    }
+  }
+
+  (input.referenceImageUrls || [])
+    .map(url => String(url || '').trim())
+    .filter(url => url.length > 0)
+    .slice(0, 5)
+    .forEach(url => {
+      form.append('referenceImageUrls[]', url);
+    });
+
+  (input.referenceImageNotes || [])
+    .map(note => String(note || '').trim())
+    .slice(0, 5)
+    .forEach(note => {
+      form.append('referenceImageNotes[]', note);
+    });
+
+  (input.productImages || [])
+    .filter(image => String(image?.uri || '').trim().length > 0)
+    .slice(0, 5)
+    .forEach((image, index) => {
+      const uri = String(image.uri).trim();
+      const type = image.type || 'image/jpeg';
+      const fallbackName = `product-${index + 1}.${type.includes('png') ? 'png' : type.includes('webp') ? 'webp' : 'jpg'}`;
+      const name = image.name || fallbackName;
+
+      form.append('productImages[]', {
+        uri,
+        type,
+        name,
+      } as any);
+
+      if (image.note && image.note.trim().length > 0) {
+        form.append('referenceImageNotes[]', image.note.trim());
+      }
+    });
+
+  return form;
+};
+
+const buildVideoCreateHeaders = (body: string | FormData): Record<string, string> => {
+  if (typeof body === 'string') {
+    return {
+      'Content-Type': 'application/json',
+    };
+  }
+
+  return {
+    Accept: 'application/json',
+  };
+};
+
 export const createVideoJob = async (
   input: VideoGenerationInput,
 ): Promise<VideoJobCreateResponse> => {
@@ -271,6 +364,8 @@ export const createVideoJob = async (
   const hasExplicitBackendUrl = normalizeBaseUrl(BACKEND_VIDEO_URL || '') !== '';
   const canTryFallback =
     !hasExplicitBackendUrl || explicitIsTestDomain || endpointUrls.length > 1;
+  const requestBody = buildVideoCreateBody(input);
+  const requestHeaders = buildVideoCreateHeaders(requestBody);
 
   let lastError: Error | null = null;
   let attemptedConnection = false;
@@ -284,10 +379,8 @@ export const createVideoJob = async (
         endpointUrl,
         {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(input),
+          headers: requestHeaders,
+          body: requestBody,
         },
         idToken,
       );

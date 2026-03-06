@@ -8,10 +8,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 import { Button, TextInput, Chip } from '../../components/common';
+import { launchImageLibrary, type Asset } from 'react-native-image-picker';
 import { createVideoJob } from '../../services/videoApi';
 import { useVideoJobs } from '../../context/VideoJobsContext';
 
@@ -58,9 +60,62 @@ export const CreateAdScreen = ({ navigation }: any) => {
   const [includePrice, setIncludePrice] = useState(false);
   const [priceText, setPriceText] = useState('');
   const [cta, setCta] = useState('');
+  const [productImages, setProductImages] = useState<
+    Array<{ uri: string; type?: string; name?: string }>
+  >([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  const handlePickProductImages = async () => {
+    const remaining = 3 - productImages.length;
+    if (remaining <= 0) {
+      Alert.alert('Limit reached', 'En fazla 3 urun gorseli ekleyebilirsin.');
+      return;
+    }
+
+    const result = await launchImageLibrary({
+      mediaType: 'photo',
+      selectionLimit: remaining,
+      quality: 1,
+      includeBase64: false,
+    });
+
+    if (result.didCancel) {
+      return;
+    }
+
+    if (result.errorCode) {
+      Alert.alert('Image Error', result.errorMessage || 'Gorsel secilemedi.');
+      return;
+    }
+
+    const nextImages = (result.assets || [])
+      .filter((asset: Asset) => typeof asset.uri === 'string' && asset.uri.length > 0)
+      .map((asset: Asset) => ({
+        uri: String(asset.uri),
+        type: asset.type || 'image/jpeg',
+        name: asset.fileName || undefined,
+      }));
+
+    if (nextImages.length === 0) {
+      return;
+    }
+
+    setProductImages(prev => {
+      const merged = [...prev];
+      nextImages.forEach(image => {
+        if (!merged.some(existing => existing.uri === image.uri)) {
+          merged.push(image);
+        }
+      });
+      return merged.slice(0, 3);
+    });
+  };
+
+  const handleRemoveProductImage = (uri: string) => {
+    setProductImages(prev => prev.filter(image => image.uri !== uri));
+  };
 
   const canProceed = () => {
     if (step === 1) {
@@ -131,6 +186,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
         includePrice,
         priceText: includePrice ? normalizedPriceText : undefined,
         cta: normalizedCta || undefined,
+        productImages: productImages.length > 0 ? productImages : undefined,
       });
 
       trackJob({
@@ -218,6 +274,35 @@ export const CreateAdScreen = ({ navigation }: any) => {
                 numberOfLines={4}
                 style={styles.textarea}
               />
+
+              <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
+                PRODUCT IMAGES (OPTIONAL)
+              </Text>
+
+              <TouchableOpacity
+                style={styles.imagePickerButton}
+                onPress={handlePickProductImages}>
+                <Text style={styles.imagePickerButtonText}>
+                  {productImages.length > 0
+                    ? `Add More (${productImages.length}/3)`
+                    : 'Add Product Image'}
+                </Text>
+              </TouchableOpacity>
+
+              {productImages.length > 0 ? (
+                <View style={styles.imageGrid}>
+                  {productImages.map(image => (
+                    <View key={image.uri} style={styles.imageCard}>
+                      <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+                      <TouchableOpacity
+                        style={styles.removeImageButton}
+                        onPress={() => handleRemoveProductImage(image.uri)}>
+                        <Text style={styles.removeImageButtonText}>Remove</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
             </View>
           )}
 
@@ -396,6 +481,10 @@ export const CreateAdScreen = ({ navigation }: any) => {
                 <SummaryRow label="Language" value={selectedLanguage} />
                 <SummaryRow label="Voice" value={voiceEnabled ? 'Enabled' : 'Disabled'} />
                 <SummaryRow label="Include Price" value={includePrice ? 'Yes' : 'No'} />
+                <SummaryRow
+                  label="Product Images"
+                  value={productImages.length > 0 ? `${productImages.length} selected` : 'None'}
+                />
               </View>
             </View>
           )}
@@ -501,6 +590,51 @@ const styles = StyleSheet.create({
   textarea: {
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  imagePickerButton: {
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  imagePickerButtonText: {
+    color: Colors.white,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  imageGrid: {
+    marginTop: Spacing.md,
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  imageCard: {
+    width: 95,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+  },
+  imagePreview: {
+    width: '100%',
+    height: 95,
+    resizeMode: 'cover',
+  },
+  removeImageButton: {
+    paddingVertical: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.background,
+  },
+  removeImageButtonText: {
+    color: Colors.textSecondary,
+    fontSize: 11,
+    fontWeight: '600',
   },
   sectionLabel: {
     fontSize: 12,
