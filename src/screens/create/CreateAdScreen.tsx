@@ -42,7 +42,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
 
   const [productName, setProductName] = useState('');
   const [productDescription, setProductDescription] = useState('');
-  const [brandName, setBrandName] = useState('');
+  const [adTargets, setAdTargets] = useState('');
 
   const [selectedPlatform, setSelectedPlatform] =
     useState<PlatformOption>('TikTok');
@@ -66,6 +66,10 @@ export const CreateAdScreen = ({ navigation }: any) => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+
+  const handleAIPolish = () => {
+    Alert.alert('Coming Soon', 'AI Refine feature will be available soon.');
+  };
 
   const handlePickProductImages = async () => {
     const remaining = 3 - productImages.length;
@@ -151,7 +155,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
 
     const normalizedProductName = productName.trim();
     const normalizedDescription = productDescription.trim();
-    const normalizedBrandName = brandName.trim();
+    const normalizedAdTargets = adTargets.trim();
     const normalizedTone = selectedTone.trim();
     const normalizedCta = cta.trim();
     const normalizedPriceText = priceText.trim();
@@ -167,8 +171,14 @@ export const CreateAdScreen = ({ navigation }: any) => {
     try {
       const job = await createVideoJob({
         productName: normalizedProductName,
-        productDescription: normalizedDescription || undefined,
-        brandName: normalizedBrandName || undefined,
+        productDescription: normalizedDescription
+          ? (normalizedAdTargets
+              ? `${normalizedDescription}\n\nAd Targets & Campaigns: ${normalizedAdTargets}`
+              : normalizedDescription)
+          : (normalizedAdTargets
+              ? `Ad Targets & Campaigns: ${normalizedAdTargets}`
+              : undefined),
+        brandName: undefined,
         platform: selectedPlatform,
         durationSeconds,
         tone: normalizedTone,
@@ -248,32 +258,43 @@ export const CreateAdScreen = ({ navigation }: any) => {
             <View style={styles.stepContent}>
               <Text style={styles.stepTitle}>Product Basics</Text>
               <Text style={styles.stepSubtitle}>
-                Required: product name. Brand and description are optional.
+                Enter your product name to get started. Add a description and campaign details to create a more targeted ad.
               </Text>
 
               <TextInput
                 label="Product Name"
-                placeholder="e.g. Blue Light Blocking Glasses"
+                placeholder="Enter your product or service name"
                 value={productName}
                 onChangeText={setProductName}
               />
 
               <TextInput
-                label="Brand Name (optional)"
-                placeholder="e.g. ScrollStop"
-                value={brandName}
-                onChangeText={setBrandName}
-              />
-
-              <TextInput
                 label="Product Description (optional)"
-                placeholder="Key features, benefits, use-cases..."
+                placeholder="Describe your product — key features, materials, style, and what makes it stand out"
                 value={productDescription}
                 onChangeText={setProductDescription}
                 multiline
                 numberOfLines={4}
                 style={styles.textarea}
               />
+
+              <TextInput
+                label="Ad Targets & Campaigns (optional)"
+                placeholder="Define your target audience, campaign objectives, pricing offers, and any promotional details"
+                value={adTargets}
+                onChangeText={setAdTargets}
+                multiline
+                numberOfLines={4}
+                style={styles.textarea}
+              />
+
+              {(productDescription.trim().length > 0 || adTargets.trim().length > 0) && (
+                <TouchableOpacity
+                  style={styles.aiPolishButton}
+                  onPress={handleAIPolish}>
+                  <Text style={styles.aiPolishButtonText}>✨ Refine with AI</Text>
+                </TouchableOpacity>
+              )}
 
               <Text style={[styles.sectionLabel, { marginTop: Spacing.lg }]}>
                 PRODUCT IMAGES (OPTIONAL)
@@ -474,7 +495,7 @@ export const CreateAdScreen = ({ navigation }: any) => {
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryTitle}>Request Summary</Text>
                 <SummaryRow label="Product" value={productName || '-'} />
-                <SummaryRow label="Brand" value={brandName || '-'} />
+                <SummaryRow label="Ad Targets" value={adTargets || '-'} />
                 <SummaryRow label="Platform" value={selectedPlatform} />
                 <SummaryRow label="Tone" value={selectedTone || '-'} />
                 <SummaryRow label="Duration" value={selectedDuration} />
@@ -590,6 +611,27 @@ const styles = StyleSheet.create({
   textarea: {
     minHeight: 100,
     textAlignVertical: 'top',
+  },
+  aiPolishButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'flex-end',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    backgroundColor: Colors.surface,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.sm,
+    minWidth: 140,
+    minHeight: 36,
+  },
+  aiPolishButtonText: {
+    color: Colors.white,
+    fontSize: 13,
+    fontWeight: '600',
   },
   imagePickerButton: {
     borderRadius: BorderRadius.md,

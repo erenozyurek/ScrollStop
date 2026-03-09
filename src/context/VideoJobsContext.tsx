@@ -8,8 +8,12 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { Alert, AppState } from 'react-native';
+import { AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  showVideoReadyNotification,
+  showVideoFailedNotification,
+} from '../services/notificationService';
 import {
   getRecentVideoJobs,
   getVideoJobStatus,
@@ -406,21 +410,13 @@ export const VideoJobsProvider = ({ children }: { children: ReactNode }) => {
         return next;
       });
 
-      if (appStateRef.current === 'active') {
-        completionNotifications.forEach(job => {
-          if (job.status === 'success') {
-            Alert.alert(
-              'Video ready',
-              `${job.productName} videosu hazir. Preview ekranindan acabilirsin.`,
-            );
-          } else {
-            Alert.alert(
-              'Generation failed',
-              job.error || `${job.productName} olusturulamadi.`,
-            );
-          }
-        });
-      }
+      completionNotifications.forEach(job => {
+        if (job.status === 'success') {
+          showVideoReadyNotification(job.productName).catch(() => {});
+        } else {
+          showVideoFailedNotification(job.productName, job.error).catch(() => {});
+        }
+      });
     } finally {
       pollingRef.current = false;
     }
