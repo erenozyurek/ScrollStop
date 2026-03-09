@@ -16,14 +16,21 @@ async function ensureChannel() {
   channelCreated = true;
 }
 
+const androidStyle = {
+  channelId: CHANNEL_ID,
+  smallIcon: 'ic_notification',
+  color: '#000000',
+  colorized: true,
+  pressAction: { id: 'default' },
+};
+
 export async function showVideoReadyNotification(productName: string) {
   await ensureChannel();
   await notifee.displayNotification({
     title: 'Video Ready 🎬',
     body: `${productName} video is ready. Open the app to preview it.`,
     android: {
-      channelId: CHANNEL_ID,
-      pressAction: { id: 'default' },
+      ...androidStyle,
     },
   });
 }
@@ -37,8 +44,7 @@ export async function showVideoFailedNotification(
     title: 'Video Generation Failed',
     body: error || `${productName} could not be generated.`,
     android: {
-      channelId: CHANNEL_ID,
-      pressAction: { id: 'default' },
+      ...androidStyle,
     },
   });
 }

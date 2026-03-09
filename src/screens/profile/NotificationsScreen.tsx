@@ -6,9 +6,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Switch,
+  Alert,
+  Platform,
+  PermissionsAndroid,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/Feather';
+import notifee, { AndroidImportance, TimestampTrigger, TriggerType } from '@notifee/react-native';
 import { Colors, Spacing, BorderRadius } from '../../theme';
 
 interface NotificationSetting {
@@ -75,6 +79,53 @@ export const NotificationsScreen = ({ navigation }: any) => {
   };
 
   const enabledCount = settings.filter(s => s.enabled).length;
+
+  const scheduleTestNotification = async () => {
+    // Android 13+ requires runtime permission for notifications
+    if (Platform.OS === 'android' && Platform.Version >= 33) {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        Alert.alert('İzin Gerekli', 'Bildirim göndermek için bildirim iznini vermeniz gerekiyor.');
+        return;
+      }
+    }
+
+    await notifee.createChannel({
+      id: 'scrollstop-video',
+      name: 'Video Generation',
+      importance: AndroidImportance.HIGH,
+    });
+
+    const trigger: TimestampTrigger = {
+      type: TriggerType.TIMESTAMP,
+      timestamp: Date.now() + 25 * 1000,
+    };
+
+    await notifee.createTriggerNotification(
+      {
+        title: 'Videonuz Hazır 🎬',
+        body: 'Videonuz hazır şimdi tıklayarak izleyebilirsiniz',
+        android: {
+          channelId: 'scrollstop-video',
+          smallIcon: 'ic_notification',
+          color: '#000000',
+          colorized: true,
+          pressAction: { id: 'default' },
+        },
+        ios: {
+          sound: 'default',
+        },
+      },
+      trigger,
+    );
+
+    Alert.alert(
+      'Bildirim Planlandı',
+      '25 saniye sonra bir test bildirimi alacaksınız. Uygulamayı kapatabilirsiniz.',
+    );
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -164,6 +215,19 @@ export const NotificationsScreen = ({ navigation }: any) => {
             />
           </View>
         ))}
+
+        {/* Test Notification Button */}
+        <Text style={[styles.sectionLabel, { marginTop: Spacing.xl }]}>Bildirim Denemesi</Text>
+        <TouchableOpacity
+          style={styles.testButton}
+          onPress={scheduleTestNotification}
+          activeOpacity={0.7}>
+          <Icon name="send" size={18} color={Colors.white} />
+          <View style={styles.testButtonText}>
+            <Text style={styles.settingTitle}>Test Bildirimi Gönder</Text>
+            <Text style={styles.settingDesc}>25 saniye sonra bir bildirim alacaksınız</Text>
+          </View>
+        </TouchableOpacity>
 
         {/* Info Note */}
         <View style={styles.infoCard}>
@@ -292,6 +356,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textTertiary,
     marginTop: 2,
+  },
+  testButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    padding: Spacing.md,
+    marginBottom: Spacing.sm,
+    gap: Spacing.md,
+  },
+  testButtonText: {
+    flex: 1,
   },
   infoCard: {
     flexDirection: 'row',
